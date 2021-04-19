@@ -1,0 +1,68 @@
+# This is a basic workflow that is manually triggered
+
+name: Create Nuget Packages
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    environment: slStreamUtilsEvn
+  
+    runs-on: windows-latest
+
+    env:
+      Solution_Name: slStreamUtils.sln
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      #with:
+      #  fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Setup dotnet 2.1.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '2.1.x'
+        
+    - name: Setup dotnet 3.1.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '3.1.x'
+        
+    - name: Setup dotnet 5.0.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '5.0.x'
+
+    - name: build proj
+      run: dotnet build $env:Solution_Name
+
+    - name: run tests
+      run: dotnet test $env:Solution_Name
+
+    - name: Base Publish NuGet
+      uses: rohith/publish-nuget@v2
+      with:
+        PROJECT_FILE_PATH:  slStreamUtils\slStreamUtils.csproj
+        TAG_COMMIT: true
+        TAG_FORMAT: nuget_v*
+        NUGET_KEY: ${{secrets.NUGET_API_KEY}}
+
+    - name: Protobuf Publish NuGet
+      uses: rohith/publish-nuget@v2
+      with:
+        PROJECT_FILE_PATH:  slStreamUtilsProtobuf\slStreamUtilsProtobuf.csproj
+        TAG_COMMIT: true
+        TAG_FORMAT: nuget_v*
+        NUGET_KEY: ${{secrets.NUGET_API_KEY}}
+
+    - name: MessagePack Publish NuGet
+      uses: rohith/publish-nuget@v2
+      with:
+        PROJECT_FILE_PATH: slStreamUtilsMessagePack\slStreamUtilsMessagePack.csproj
+        TAG_COMMIT: true
+        TAG_FORMAT: nuget_v*
+        NUGET_KEY: ${{secrets.NUGET_API_KEY}}

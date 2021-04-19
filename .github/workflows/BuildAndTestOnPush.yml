@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    runs-on: windows-latest  # For a list of available runner types, refer to
+                             # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idruns-on
+    env:
+      Solution_Name: slStreamUtils.sln
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+#      with:
+#        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Setup dotnet 2.1.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '2.1.x'
+        
+    - name: Setup dotnet 3.1.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '3.1.x'
+        
+    - name: Setup dotnet 5.0.x
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '5.0.x'
+        
+    - name: build proj
+      run: dotnet build $env:Solution_Name
+
+    - name: run tests
+      run: dotnet test $env:Solution_Name
