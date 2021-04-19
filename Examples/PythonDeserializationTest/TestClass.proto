@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+message ArrayWrapper_TestClass {
+   repeated TestClass Array = 1;
+}
+message TestClass {
+   int32 i1 = 1;
+   int32 i2 = 2;
+   bool b1 = 3;
+   int64 l1 = 4;
+}
