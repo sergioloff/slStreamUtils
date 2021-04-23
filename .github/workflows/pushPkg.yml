@@ -38,20 +38,21 @@ jobs:
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@v1.0.2
         
-    - name: Restore the application
-      run: msbuild $env:Solution_Name /t:Restore /p:Configuration=$env:Configuration
-      env:
-        Configuration: ${{ matrix.configuration }}    
-
-    - name: Execute unit tests
-      run: dotnet test
+#    - name: Restore the application
+#      run: msbuild $env:Solution_Name /t:Restore /p:Configuration=$env:Configuration
+#      env:
+#        Configuration: ${{ matrix.configuration }}    
 
     - name: Build 
       run: msbuild $env:MainPackage_Path /p:Configuration=$env:Configuration
       env:
         Configuration: ${{ matrix.configuration }}
 
+    - name: Execute unit tests
+      run: dotnet test
+
     - name: MainPackage Publish NuGet
+      id: publish_nuget
       uses: rohith/publish-nuget@v2
       with:
         # Filepath of the project to be packaged, relative to root of repository
