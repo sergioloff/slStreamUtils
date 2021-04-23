@@ -56,7 +56,8 @@ jobs:
       uses: rohith/publish-nuget@v2
       with:
         # Filepath of the project to be packaged, relative to root of repository
-        INPUT_PROJECT_FILE_PATH: $env:MainPackage_Path
+        PROJECT_FILE_PATH: slStreamUtils/slStreamUtils.csproj
+        #$env:MainPackage_Path
         
         # NuGet package id, used for version detection & defaults to project name
         # PACKAGE_NAME: Core
