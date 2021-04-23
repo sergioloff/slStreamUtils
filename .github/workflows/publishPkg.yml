@@ -49,14 +49,6 @@ jobs:
     - name: Execute unit tests
       run: dotnet test
 
-    - name: MainPackage Publish NuGet
-      uses: rohith/publish-nuget@v2
-      with:
-        PROJECT_FILE_PATH: slStreamUtils/slStreamUtils.csproj
-        TAG_COMMIT: true
-        TAG_FORMAT: nuget_v*
-        NUGET_KEY: ${{secrets.NUGET_API_KEY}}
-
     - name: Protobuf Publish NuGet
       uses: rohith/publish-nuget@v2
       with:
