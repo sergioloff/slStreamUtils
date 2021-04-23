@@ -1,4 +1,4 @@
-﻿// https://github.com/Corvalius/ravendb/tree/master/Raven.Sparrow/Sparrow
+﻿// copied from https://github.com/Corvalius/ravendb/tree/master/Raven.Sparrow/Sparrow. Please follow the link for licencing info
 #if !DNXCORE50
 #if WINDOWS_NT
 using System;
@@ -6,7 +6,7 @@ using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 using System.Security;
 
-namespace Sparrow.Platform
+namespace slStreamUtils.ThirdParty.Sparrow
 {
     public static unsafe partial class UnmanagedMemory
     {

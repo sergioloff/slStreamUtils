@@ -1,15 +1,8 @@
 ﻿// copied from https://github.com/Corvalius/ravendb/tree/master/Raven.Sparrow/Sparrow. Please follow the link for licencing info
 #if !DNXCORE50
-using Sparrow.Platform;
-using System;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Runtime.ConstrainedExecution;
-using System.Runtime.InteropServices;
-using System.Security;
-using System.Threading.Tasks;
 
-namespace Sparrow
+namespace slStreamUtils.ThirdParty.Sparrow
 {
     public unsafe static class Memory
     {

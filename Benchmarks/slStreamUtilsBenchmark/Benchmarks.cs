@@ -290,7 +290,7 @@ namespace slStreamUtilsBenchmark
                 using (var streamReader = new MessagePackStreamReader(s))
                     while (await streamReader.ReadAsync(CancellationToken.None) is ReadOnlySequence<byte> msgpack)
                     {
-                        var obj = MessagePackSerializer.Deserialize<slStreamUtils.MultiThreadedSerialization.MessagePack.MessagePackItemWrapper<T>>(msgpack, cancellationToken: CancellationToken.None).t;
+                        var obj = MessagePackSerializer.Deserialize<MessagePackItemWrapper<T>>(msgpack, cancellationToken: CancellationToken.None).t;
                         res ^= obj.DoStuff();
                     }
             }
@@ -349,7 +349,7 @@ namespace slStreamUtilsBenchmark
                 for (int ix = 0; ix < objArr.Length; ix++)
                 {
                     T obj = objArr[ix];
-                    await MessagePackSerializer.SerializeAsync(s, new slStreamUtils.MultiThreadedSerialization.MessagePack.MessagePackItemWrapper<T>(obj));
+                    await MessagePackSerializer.SerializeAsync(s, new MessagePackItemWrapper<T>(obj));
                 }
             }
         }

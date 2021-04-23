@@ -131,7 +131,7 @@ namespace slStreamUtils.Streams.Writer
             {
                 fixed (byte* bufferPtr = buffer)
                 {
-                    Sparrow.Memory.Copy(shadowBuffer.buffer_ptr + currShadowBufferIx, bufferPtr + offset, count);
+                    ThirdParty.Sparrow.Memory.Copy(shadowBuffer.buffer_ptr + currShadowBufferIx, bufferPtr + offset, count);
                 }
             }
             return buffer;
