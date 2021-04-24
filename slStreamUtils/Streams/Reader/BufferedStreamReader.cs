@@ -137,7 +137,7 @@ namespace slStreamUtils.Streams.Reader
             {
                 fixed (byte* bufferPtr = buffer)
                 {
-                    Sparrow.Memory.Copy(bufferPtr + offset, shadowBuffer.buffer_ptr + currShadowBufferIx, count);
+                    ThirdParty.Sparrow.Memory.Copy(bufferPtr + offset, shadowBuffer.buffer_ptr + currShadowBufferIx, count);
                 }
             }
             return buffer;
@@ -148,7 +148,7 @@ namespace slStreamUtils.Streams.Reader
             {
                 fixed (byte* bufferPtr = buffer)
                 {
-                    Sparrow.Memory.BulkCopy(bufferPtr + offset, shadowBuffer.buffer_ptr + currShadowBufferIx, count);
+                    ThirdParty.Sparrow.Memory.BulkCopy(bufferPtr + offset, shadowBuffer.buffer_ptr + currShadowBufferIx, count);
                 }
             }
             return buffer;
