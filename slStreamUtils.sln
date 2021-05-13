@@ -25,7 +25,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
+		.github\workflows\BuildAndTestOnPush.yml = .github\workflows\BuildAndTestOnPush.yml
 		LICENSE = LICENSE
+		.github\workflows\publishPkg.yml = .github\workflows\publishPkg.yml
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "slStreamUtilsMessagePackTest", "UnitTests\slStreamUtilsMessagePackTest\slStreamUtilsMessagePackTest.csproj", "{3B7526E2-0D7D-4D0B-BB68-72DD2FB6BF58}"
