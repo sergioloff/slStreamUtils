@@ -38,5 +38,6 @@ jobs:
         
     - name: build proj
       run: dotnet build $env:Solution_Name
+
     - name: run tests
       run: dotnet test $env:Solution_Name
