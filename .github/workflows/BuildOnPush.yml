@@ -42,6 +42,6 @@ jobs:
         dotnet-version: '5.0.x'
         
     - name: build proj
-    - run: dotnet build $env:Solution_Name
+      run: dotnet build $env:Solution_Name
     - name: run tests
-    - run: dotnet test $env:Solution_Name
+      run: dotnet test $env:Solution_Name
