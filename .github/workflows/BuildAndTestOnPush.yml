@@ -32,7 +32,7 @@ jobs:
         dotnet-version: '3.1.x'
         
     - name: Setup dotnet 2.0.x
-      uses: actions/setup-dotnet @v1
+      uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '2.0.x'
         
