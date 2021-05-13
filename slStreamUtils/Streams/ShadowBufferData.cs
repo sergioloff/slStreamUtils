@@ -13,7 +13,6 @@ namespace slStreamUtils.Streams
         internal readonly byte[] buffer;
         internal readonly GCHandle buffer_handle;
         internal readonly byte* buffer_ptr;
-        private bool disposedValue;
 
         public ShadowBufferData(int shadowBufferSize, int count = 0)
         {
