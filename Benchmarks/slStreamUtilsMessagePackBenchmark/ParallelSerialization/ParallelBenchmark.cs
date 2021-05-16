@@ -17,12 +17,12 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
     public class Benchmark_Small_Config
     {
         public const int blockSize = 128;
-        public const int totBlocks = 1024 * 16 * 4 * 30;
+        public const int totBlocks = 64 * 16 * 4 * 30;
     }
     public class Benchmark_Large_Config
     {
         public const int blockSize = 128;
-        public const int totBlocks = 1024 * 16 * 4;
+        public const int totBlocks = 64 * 16 * 4;
     }
 
     public class ParallelBenchmark

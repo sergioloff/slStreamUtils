@@ -44,16 +44,20 @@ namespace slStreamUtilsMessagePack.Formatters
                     MessagePackWriter writerBody = new MessagePackWriter(batchOut.concatenatedBodies) { OldSpec = isOldSpec, CancellationToken = token };
                     var spanIn = batch.AsSpan();
                     int prevWrittenBytesCount = 0;
+                    int sumLen = 0;
                     for (int ix = 0; ix < spanIn.Length; ix++)
                     {
                         formatterT.Serialize(ref writerBody, spanIn[ix], options);
                         writerBody.Flush();
-                        int objLen = batchOut.concatenatedBodies.WrittenCount - prevWrittenBytesCount;
-                        prevWrittenBytesCount = batchOut.concatenatedBodies.WrittenCount;
+                        int currWrittenBytesCount = batchOut.concatenatedBodies.WrittenCount;
+                        int objLen = currWrittenBytesCount - prevWrittenBytesCount;
+                        prevWrittenBytesCount = currWrittenBytesCount;
                         batchOut.lengths.GetSpan(1)[0] = objLen;
                         batchOut.lengths.Advance(1);
-                        batchEstimator.UpdateEstimate(objLen);
+                        sumLen += objLen;
                     }
+                    if (spanIn.Length > 0)
+                        batchEstimator.UpdateEstimate((float)sumLen / (float)spanIn.Length); // update with avg instead of updating for every loop item. It's not exact, but it's faster
                     return batchOut;
                 }
 

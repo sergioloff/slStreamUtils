@@ -65,8 +65,8 @@ namespace slStreamUtilsMessagePack.Formatters
                                 int itemLen = lengths[ix];
                                 ReadOnlyMemory<byte> body = bodies.Slice(bodyStartIx, itemLen);
                                 MessagePackReader tmpReader = new MessagePackReader(body) { CancellationToken = token };
-                                T res = formatterT.Deserialize(ref tmpReader, options);
-                                destSpan[ix] = new Frame<T>((int)body.Length, res);
+                                destSpan[ix].BufferLength = body.Length;
+                                destSpan[ix].Item = formatterT.Deserialize(ref tmpReader, options);
                                 bodyStartIx += itemLen;
                             }
                         }

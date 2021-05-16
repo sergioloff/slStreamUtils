@@ -4,26 +4,25 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
 using System;
 
-namespace slStreamUtilsMessagePack
+namespace slStreamUtils
 {
+    // while not thread-safe, it can be used by multiple threads, producing variable and less accurate results
     public class BatchSizeEstimator
     {
         public BatchSizeEstimatorConfig Config { get; private set; }
-        private double alpha;
-        private double EMA_FrameSize_bytes = double.MinValue;
-        private double EMAm1 = 0;
+        private float alpha;
+        private float EMA_FrameSize_bytes = float.MinValue;
+        private float EMAm1 = 0;
         private int iters = 0;
         private int maxElements;
         private int minSamplesRequired;
         private int recomendedBatchSize;
-        private readonly object synchRoot;
 
         public BatchSizeEstimator(BatchSizeEstimatorConfig config)
         {
             Config = config;
             maxElements = Config.MaxAllowedElementsInBatch ?? int.MaxValue;
             minSamplesRequired = Config.MinSamplesRequired ?? Config.EmaInterval;
-            synchRoot = new object();
             if (Config.HintAvgFrameSize_bytes.HasValue)
             {
                 EMAm1 = Config.HintAvgFrameSize_bytes.Value;
@@ -42,8 +41,7 @@ namespace slStreamUtilsMessagePack
         {
             get
             {
-                lock (synchRoot)
-                    return (int)EMAm1;
+                return (int)EMAm1;
             }
         }
 
@@ -51,22 +49,18 @@ namespace slStreamUtilsMessagePack
         {
             get
             {
-                lock (synchRoot)
-                    return recomendedBatchSize;
+                return recomendedBatchSize;
             }
         }
 
-        public void UpdateEstimate(int observedFrameSize_bytes)
+        public void UpdateEstimate(float observedFrameSize_bytes)
         {
-            lock (synchRoot)
-            {
-                double v = observedFrameSize_bytes;
-                alpha = 1 - 2.0 / (1.0 + (double)Math.Min(iters + 1, Config.EmaInterval));
-                EMA_FrameSize_bytes = (1 - alpha) * v + alpha * EMAm1;
-                EMAm1 = EMA_FrameSize_bytes;
-                CalcEstimatedElementsInBatch();
-                iters++;
-            }
+            float v = observedFrameSize_bytes;
+            alpha = 1.0f - 2.0f / (1.0f + (float)Math.Min(iters + 1, Config.EmaInterval));
+            EMA_FrameSize_bytes = (1 - alpha) * v + alpha * EMAm1;
+            EMAm1 = EMA_FrameSize_bytes;
+            CalcEstimatedElementsInBatch();
+            iters++;
         }
 
         private void CalcEstimatedElementsInBatch()
@@ -77,7 +71,4 @@ namespace slStreamUtilsMessagePack
                 recomendedBatchSize = Math.Min(maxElements, Math.Max(1, (int)(Config.DesiredBatchSize_bytes / EMA_FrameSize_bytes)));
         }
     }
-
-
-
 }

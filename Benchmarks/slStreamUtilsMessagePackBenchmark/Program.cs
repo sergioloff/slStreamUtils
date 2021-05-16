@@ -15,8 +15,8 @@ namespace slStreamUtilsMessagePackBenchmark
     {
         static async Task Main(string[] args)
         {
-            //BenchmarkRunner.Run(typeof(Program).Assembly); 
-            //return;
+            BenchmarkRunner.Run(typeof(Program).Assembly);
+            return;
             await TestParallelBenchmark();
             await TestCollectionBenchmark();
             Console.WriteLine("done");
