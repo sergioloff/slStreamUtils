@@ -19,12 +19,12 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
     public class Benchmark_Small_Config
     {
         public const int blockSize = 128;
-        public const int totBlocks = 1024 * 16 * 4 * 30;
+        public const int totBlocks = 64 * 16 * 4 * 30;
     }
     public class Benchmark_Large_Config
     {
         public const int blockSize = 128;
-        public const int totBlocks = 1024 * 16 * 4;
+        public const int totBlocks = 64 * 16 * 4;
     }
 
     public class CollectionBenchmark
@@ -60,7 +60,7 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
 
         [Benchmark]
         [ArgumentsSource(nameof(BenchmarkArguments_Read_Baseline))]
-        public  int Read_Baseline(bool isSmall, int totalPreFetchBlocks, bool usingMemoryStream)
+        public int Read_Baseline(bool isSmall, int totalPreFetchBlocks, bool usingMemoryStream)
         {
             BufferedStreamReaderConfig config = totalPreFetchBlocks >= 0 ? new BufferedStreamReaderConfig(totalPreFetchBlocks: totalPreFetchBlocks) : null;
             if (isSmall)

@@ -10,7 +10,6 @@ using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils;
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -28,6 +27,7 @@ namespace slStreamUtilsMessagePack
         private FIFOWorker<ArrayPoolBufferWriter<T>, BatchWithBufferWriters> fifow;
         private BatchSizeEstimator batchEstimator;
         private ArrayPoolBufferWriter<T> currentBatch;
+        private int desiredBatchSize;
         private IMessagePackFormatter<T> formatterT;
         private const byte fmtCode_fixArraySize2 = MessagePackCode.MinFixArray | 0x02;
         private const int headerMaxLength =
@@ -72,6 +72,7 @@ namespace slStreamUtilsMessagePack
                 new ArrayPoolBufferWriterObjectPoolPolicy<T>(1024),
                 fifowConfig.MaxQueuedItems);
             currentBatch = objPoolOutputBatch.Get();
+            desiredBatchSize = 1;
             formatterT = w_opts.Resolver.GetFormatterWithVerify<T>();
         }
 
@@ -112,12 +113,12 @@ namespace slStreamUtilsMessagePack
 
         private async Task CompleteBatch(bool flushBatch, CancellationToken token)
         {
-            int desiredBatchSize = batchEstimator.RecomendedBatchSize;
             if (flushBatch || currentBatch.WrittenCount >= desiredBatchSize)
             {
                 foreach (var bw in fifow.AddWorkItem(currentBatch, token))
                     await BatchToStreamAsync(bw, token).ConfigureAwait(false);
                 currentBatch = objPoolOutputBatch.Get();
+                desiredBatchSize = batchEstimator.RecomendedBatchSize;
             }
         }
 
@@ -135,6 +136,7 @@ namespace slStreamUtilsMessagePack
                 };
                 var spanIn = batch.WrittenSpan;
                 int prevWrittenBytesCount = 0;
+                int sumLen = 0;
                 for (int ix = 0; ix < spanIn.Length; ix++)
                 {
                     formatterT.Serialize(ref writerBody, spanIn[ix], w_opts);
@@ -143,7 +145,10 @@ namespace slStreamUtilsMessagePack
                     prevWrittenBytesCount = batchOut.concatenatedBodies.WrittenCount;
                     batchOut.lengths.GetSpan(1)[0] = objLen;
                     batchOut.lengths.Advance(1);
+                    sumLen += objLen;
                 }
+                if (spanIn.Length > 0)
+                    batchEstimator.UpdateEstimate((float)sumLen / (float)spanIn.Length); // update with avg instead of updating for every loop item. It's not exact, but it's faster
                 return batchOut;
             }
             finally
@@ -163,54 +168,7 @@ namespace slStreamUtilsMessagePack
         private int WriteHeader(Span<byte> buffer, uint value)
         {
             buffer[0] = fmtCode_fixArraySize2;
-            return WriteUInt(buffer.Slice(1), value) + 1;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteUInt(Span<byte> span, uint value)
-        {
-            if (value <= MessagePackRange.MaxFixPositiveInt)
-            {
-                return WriteUint8Small(span, value);
-            }
-            else if (value <= byte.MaxValue)
-            {
-                return WriteUint8Large(span, value);
-            }
-            else if (value <= UInt16.MaxValue)
-            {
-                return WriteUInt16(span, (UInt16)value);
-            }
-            else
-            {
-                return WriteUInt32(span, (UInt32)value);
-            }
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteUint8Large(Span<byte> span, uint value)
-        {
-            span[0] = MessagePackCode.UInt8;
-            span[1] = unchecked((byte)value);
-            return 2;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteUint8Small(Span<byte> span, uint value)
-        {
-            span[0] = unchecked((byte)value);
-            return 1;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteUInt32(Span<byte> span, UInt32 value)
-        {
-            span[0] = MessagePackCode.UInt32;
-            BinaryPrimitives.WriteUInt32BigEndian(span.Slice(1), value);
-            return 5;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteUInt16(Span<byte> span, UInt16 value)
-        {
-            span[0] = MessagePackCode.UInt16;
-            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(1), value);
-            return 3;
+            return UIntWriter.WriteUInt(buffer.Slice(1), value) + 1;
         }
 
         private async Task BatchToStreamAsync(BatchWithBufferWriters batch, CancellationToken token)

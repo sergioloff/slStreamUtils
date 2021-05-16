@@ -385,7 +385,7 @@ namespace slStreamUtilsMessagePackBenchmark
 
         public int DoStuff()
         {
-            return arr.Select(f => ((TestClassSmall)f).DoStuff()).Aggregate((f, g) => f ^ g);
+            return arr?.Select(f => ((TestClassSmall)f)?.DoStuff() ?? 0).Aggregate((f, g) => f ^ g) ?? 0;
         }
 
         public TestClassSmallParallel GetRandInstance(RandHelper helper, params int[] lengths)
