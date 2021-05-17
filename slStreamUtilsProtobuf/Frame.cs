@@ -10,10 +10,10 @@ namespace slStreamUtilsProtobuf
     [ProtoContract]
     public struct Frame<T> : IEquatable<Frame<T>>
     {
-        [ProtoMember(1)]
+        [ProtoIgnore]
         public int BufferLength { get; internal set; }
 
-        [ProtoMember(2)]
+        [ProtoMember(1)]
         public T Item { get; set; }
 
         public const int unassigned = 0;

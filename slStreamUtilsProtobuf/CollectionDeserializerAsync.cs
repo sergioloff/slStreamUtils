@@ -4,91 +4,168 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
 using slStreamUtils;
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Toolkit.HighPerformance;
+using Microsoft.Toolkit.HighPerformance.Buffers;
+using slStreamUtils.ObjectPoolPolicy;
+using Microsoft.Extensions.ObjectPool;
 
 namespace slStreamUtilsProtobuf
 {
     public class CollectionDeserializerAsync<T> : IDisposable
     {
-        private readonly ArrayPool<byte> ap;
-        private readonly FIFOWorker<Tuple<byte[], int>, Tuple<T, int>> fifow;
+        private ObjectPool<ArrayPoolBufferWriter<byte>> objPoolBufferWriterSerializedBatch;
+        private ObjectPool<List<int>> objPoolList;
+        private FIFOWorker<BatchIn, BatchOut> fifow;
+        private int desiredBatchSize_bytes;
 
-        public CollectionDeserializerAsync(FIFOWorkerConfig fifoConfig)
+        private struct BatchIn
         {
-            ap = ArrayPool<byte>.Shared;
-            fifow = new FIFOWorker<Tuple<byte[], int>, Tuple<T, int>>(fifoConfig, HandleWorkerOutput);
+            public List<int> Lengths;
+            public ArrayPoolBufferWriter<byte> concatenatedBodies;
+        }
+        private struct BatchOut
+        {
+            public List<int> Lengths;
+            public T[] elements;
+        }
+
+        public CollectionDeserializerAsync(FIFOWorkerConfig fifowConfig, int desiredBatchSize_bytes = 1024 * 64)
+        {
+            this.desiredBatchSize_bytes = desiredBatchSize_bytes;
+            fifow = new FIFOWorker<BatchIn, BatchOut>(fifowConfig, HandleWorkerOutput);
             ProtoBuf.Serializer.PrepareSerializer<T>();
+            objPoolBufferWriterSerializedBatch = new DefaultObjectPool<ArrayPoolBufferWriter<byte>>(
+                new ArrayPoolBufferWriterObjectPoolPolicy<byte>(Math.Max(1024 * 64, desiredBatchSize_bytes)),
+                fifowConfig.MaxQueuedItems);
+            objPoolList = new DefaultObjectPool<List<int>>(new ListObjectPoolPolicy<int>(64), fifowConfig.MaxQueuedItems);
         }
 
         public async IAsyncEnumerable<Frame<T>> DeserializeAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
         {
-            while (true)
+            BatchIn currentBatch = new BatchIn();
+            int currentBatchTotalSize = 0;
+            int currentBatchTotalElements = 0;
+
+            while (TryReadHeader(stream, out int itemLength))
             {
-                Tuple<bool, int> header = ReadHeader(stream);
-                if (!header.Item1)
-                    break;
-                int i = header.Item2;
-                byte[] buf = await BufferFromStreamAsync(stream, i, token).ConfigureAwait(false);
-                foreach (var f in fifow.AddWorkItem(new Tuple<byte[], int>(buf, i), token))
-                    yield return new Frame<T>(f.Item2, f.Item1);
+                if (currentBatchTotalSize + itemLength > desiredBatchSize_bytes && currentBatchTotalElements > 0)
+                {
+                    // send prev batch
+                    foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                        yield return t;
+                    currentBatchTotalSize = 0;
+                    currentBatchTotalElements = 0;
+                }
+                if (currentBatchTotalElements == 0)
+                {
+                    currentBatch.concatenatedBodies = objPoolBufferWriterSerializedBatch.Get();
+                    currentBatch.Lengths = objPoolList.Get();
+                }
+                await BufferFromStreamAsync(stream, currentBatch.concatenatedBodies, itemLength, token).ConfigureAwait(false);
+                currentBatchTotalSize += itemLength;
+                currentBatchTotalElements++;
+                currentBatch.Lengths.Add(itemLength);
             }
-            foreach (var f in fifow.Flush(token))
-                yield return new Frame<T>(f.Item2, f.Item1);
+            if (currentBatchTotalElements > 0) // send unfinished batch
+                foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                    yield return t;
+            foreach (Frame<T> t in IterateOutputBatch(fifow.Flush(token)))
+                yield return t;
         }
 
-        protected virtual Tuple<bool, int> ReadHeader(Stream s)
+        private IEnumerable<Frame<T>> IterateOutputBatch(IEnumerable<BatchOut> outBatches)
+        {
+            foreach (BatchOut batch in outBatches)
+            {
+                try
+                {
+                    for (int itemIx = 0; itemIx < batch.elements.Length; itemIx++)
+                        yield return new Frame<T>(batch.Lengths[itemIx], batch.elements[itemIx]);
+                }
+                finally
+                {
+                    objPoolList.Return(batch.Lengths);
+                }
+            }
+        }
+
+        private bool TryReadHeader(Stream s, out int length)
         {
             int ib = s.ReadByte();
             if (ib == -1)
-                return new Tuple<bool, int>(false, 0);
+            {
+                length = 0;
+                return false;
+            }
             byte b = (byte)ib;
             if (b != ProtobufConsts.protoRepeatedTag1)
                 throw new StreamSerializationException($"invalid proto element found: {b}, expected {ProtobufConsts.protoRepeatedTag1}");
-            bool res = ProtoBuf.Serializer.TryReadLengthPrefix(s, ProtoBuf.PrefixStyle.Base128, out int availableLength);
-            return new Tuple<bool, int>(res, availableLength);
+
+            return ProtoBuf.Serializer.TryReadLengthPrefix(s, ProtoBuf.PrefixStyle.Base128, out length);
         }
 
-        private Tuple<T, int> HandleWorkerOutput(Tuple<byte[], int> tuple, CancellationToken token)
+        private void WriteHeader(ArrayPoolBufferWriter<byte> buf, int length)
         {
-            byte[] buffer = tuple.Item1;
-            int availableLength = tuple.Item2;
-            T res;
+            const int maxBufSizeVarint32 = 5;
+            Span<byte> span = buf.GetSpan(maxBufSizeVarint32 + 1);
+            span[0] = ProtobufConsts.protoRepeatedTag1;
+            int totWritten = LocalWriteVarint32((uint)length, 1, span) + 1;
+            buf.Advance(totWritten);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int LocalWriteVarint32(uint value, int index, Span<byte> span)
+        {
+            // snippet taken from protobuf-net's int LocalWriteVarint32(uint value)
+            int count = 0;
+            do
+            {
+                span[index++] = (byte)((value & 0x7F) | 0x80);
+                count++;
+            } while ((value >>= 7) != 0);
+            span[index - 1] &= 0x7F;
+            return count;
+        }
+
+        private BatchOut HandleWorkerOutput(BatchIn batch, CancellationToken token)
+        {
             try
             {
-                ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(buffer, 0, availableLength);
-                res = ReadBody(span);
-                token.ThrowIfCancellationRequested();
+                var arrT = ProtoBuf.Serializer.Deserialize<ArrayWrapper<T>>(batch.concatenatedBodies.WrittenSpan).Array;
+                return new BatchOut() { Lengths = batch.Lengths, elements = arrT };
             }
             finally
             {
-                ap.Return(buffer);
+                objPoolBufferWriterSerializedBatch.Return(batch.concatenatedBodies);
             }
-            return new Tuple<T, int>(res, availableLength);
         }
-        protected virtual T ReadBody(ReadOnlySpan<byte> span)
+
+        private async Task BufferFromStreamAsync(Stream stream, ArrayPoolBufferWriter<byte> buf, int length, CancellationToken token)
         {
-            return ProtoBuf.Serializer.Deserialize<T>(span);
-        }
-        private async Task<byte[]> BufferFromStreamAsync(Stream stream, int length, CancellationToken token)
-        {
-            byte[] buf = ap.Rent(length);
-            int totRead = await stream.ReadAsync(buf, 0, length, token).ConfigureAwait(false);
+            WriteHeader(buf, length);
+            Memory<byte> mem = buf.GetMemory(length).Slice(0, length);
+            int totRead = await stream.ReadAsync(mem, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             if (totRead != length)
                 throw new StreamSerializationException($"Unexpected length read while deserializing body. Expected {length}, got {totRead}");
-            return buf;
+            buf.Advance(length);
         }
-
 
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)
+            {
                 fifow.Dispose();
+            }
+            fifow = null;
+            objPoolBufferWriterSerializedBatch = null;
+            objPoolList = null;
+
         }
         public void Dispose()
         {

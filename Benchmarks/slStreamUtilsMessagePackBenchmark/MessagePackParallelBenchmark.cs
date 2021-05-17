@@ -13,7 +13,6 @@ using slStreamUtilsMessagePack;
 
 namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
 {
-
     public class Benchmark_Small_Config
     {
         public const int blockSize = 128;
@@ -25,7 +24,7 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
         public const int totBlocks = 64 * 16 * 4;
     }
 
-    public class ParallelBenchmark
+    public class MessagePackParallelBenchmark
     {
         BenchmarkLogic<TestClassSmallBaseline, TestClassSmallParallel> logic_small;
         BenchmarkLogic<TestClassLargeBaseline, TestClassLargeParallel> logic_large;
@@ -49,9 +48,9 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
         }
 
         public int[] TotalPreFetchBlocks_Baseline_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1 };
+        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1, 4 };
         public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1 };
+        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1, 4 };
         public int[] TotWorkerThreads_Choices = new int[] { 1, 2, 3, 4 };
         public bool[] UsingMemoryStream_Choices = new bool[] { true, false };
         public bool[] IsSmall_Choices = new bool[] { true, false };
@@ -91,9 +90,6 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
                     foreach (int totalDelayedWriterBlocks in TotalDelayedWriterBlocks_Baseline_Choices)
                         yield return new object[] { isSmall, totalDelayedWriterBlocks, usingMemoryStream };
         }
-
-
-
 
         [Benchmark]
         [ArgumentsSource(nameof(BenchmarkArguments_Read_Parallel))]

@@ -7,6 +7,7 @@ using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance;
 using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils;
+using slStreamUtils.ObjectPoolPolicy;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -70,10 +71,8 @@ namespace slStreamUtilsMessagePack
             {
                 BatchWithBufferWriters currentBatch = new BatchWithBufferWriters();
                 int currentBatchTotalSize = 0;
-                while (true)
+                while (TryReadHeader(stream, out int itemLength))
                 {
-                    if (!ReadHeader(stream, out int itemLength))
-                        break;
                     if (currentBatchTotalSize + itemLength > desiredBatchSize_bytes && currentBatchTotalSize > 0)
                     {
                         // send prev batch
@@ -130,7 +129,7 @@ namespace slStreamUtilsMessagePack
             return t;
         }
 
-        private bool ReadHeader(Stream s, out int length)
+        private bool TryReadHeader(Stream s, out int length)
         {
             int i = s.ReadByte();
             if (i == -1)

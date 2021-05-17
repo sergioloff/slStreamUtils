@@ -4,8 +4,10 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance.Buffers;
+using System.Collections.Generic;
+using System.IO;
 
-namespace slStreamUtilsMessagePack
+namespace slStreamUtils.ObjectPoolPolicy
 {
     public class ArrayPoolBufferWriterObjectPoolPolicy<T> : IPooledObjectPolicy<ArrayPoolBufferWriter<T>>
     {

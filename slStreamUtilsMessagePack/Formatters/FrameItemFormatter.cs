@@ -7,8 +7,8 @@ using MessagePack.Formatters;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils;
+using slStreamUtils.ObjectPoolPolicy;
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace slStreamUtilsMessagePack.Formatters
