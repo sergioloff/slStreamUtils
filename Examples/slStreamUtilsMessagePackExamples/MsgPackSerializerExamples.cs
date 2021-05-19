@@ -24,17 +24,15 @@ namespace slStreamUtilsMessagePackExamples
         public static async Task Original_UnknownLengthArray_WriteAsync(string fileName)
         {
             var arr = GetSampleArray();
-            using var s = File.Create(fileName);
+            using var stream = File.Create(fileName);
             foreach (var obj in arr)
-            {
-                await MessagePackSerializer.SerializeAsync<Frame<X>>(s, obj, MessagePackSerializerOptions.Standard);
-            }
+                await MessagePackSerializer.SerializeAsync<Frame<X>>(stream, obj);
         }
         public static async Task New_UnknownLengthArray_WriteAsync(string fileName)
         {
             var arr = GetSampleArray();
-            using var s = File.Create(fileName);
-            await using var ser = new CollectionSerializerAsync<X>(s, new FIFOWorkerConfig(maxConcurrentTasks: 2));
+            using var stream = File.Create(fileName);
+            await using var ser = new CollectionSerializerAsync<X>(stream, maxConcurrentTasks: 2);
             foreach (var item in arr)
                 await ser.SerializeAsync(item);
         }
@@ -43,8 +41,8 @@ namespace slStreamUtilsMessagePackExamples
         {
             var opts = MessagePackSerializerOptions.Standard;
             ArrayX obj = GetArrayX();
-            using var s = File.Create(fileName);
-            await MessagePackSerializer.SerializeAsync(s, obj, opts);
+            using var stream = File.Create(fileName);
+            await MessagePackSerializer.SerializeAsync(stream, obj, opts);
         }
 
         public static async Task New_KnownLengthArray_WriteAsync(string fileName)

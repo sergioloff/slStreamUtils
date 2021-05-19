@@ -47,7 +47,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "slStreamUtilsProtobufExampl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "slStreamUtilsBenchmarkLauncher", "Benchmarks\slStreamUtilsBenchmarkLauncher\slStreamUtilsBenchmarkLauncher.csproj", "{8CFD88B3-F937-4B73-ACBE-51BB04DB1A0C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScratchPad", "ScratchPad\ScratchPad.csproj", "{94B6F844-1C44-4315-9F10-09B25DB557F6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScratchPad", "ScratchPad\ScratchPad.csproj", "{94B6F844-1C44-4315-9F10-09B25DB557F6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

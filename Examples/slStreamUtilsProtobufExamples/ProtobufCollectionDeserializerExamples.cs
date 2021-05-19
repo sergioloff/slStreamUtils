@@ -13,20 +13,16 @@ namespace slStreamUtilsProtobufExamples
     {
         public static IEnumerable<X> Original_UnknownLengthArray_Read(string fileName)
         {
-            using var s = File.OpenRead(fileName);
-            while (true)
-            {
-                X obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(s, ProtoBuf.PrefixStyle.Base128, 1);
-                if (obj is null)
-                    break;
+            using var stream = File.OpenRead(fileName);
+            X obj;
+            while ((obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(stream, ProtoBuf.PrefixStyle.Base128, 1)) != null)
                 yield return obj;
-            }
         }
         public static async IAsyncEnumerable<X> New_UnknownLengthArray_ReadAsync(string fileName)
         {
-            using var s = File.OpenRead(fileName);
+            using var stream = File.OpenRead(fileName);
             using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
-            await foreach (var item in ds.DeserializeAsync(s))
+            await foreach (var item in ds.DeserializeAsync(stream))
                 yield return item.Item;
         }
     }
