@@ -21,16 +21,16 @@ namespace slStreamUtilsProtobufExamples
         {
             if (File.Exists(fileName)) File.Delete(fileName);
             IEnumerable<X> arr = GetSampleArray();
-            using var s = File.Create(fileName);
+            using var stream = File.Create(fileName);
             foreach (var obj in arr)
-                ProtoBuf.Serializer.SerializeWithLengthPrefix(s, obj, ProtoBuf.PrefixStyle.Base128, 1);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, obj, ProtoBuf.PrefixStyle.Base128, 1);
         }
         public static async Task New_UnknownLengthArray_WriteAsync(string fileName)
         {
             if (File.Exists(fileName)) File.Delete(fileName);
             IEnumerable<X> arr = GetSampleArray();
-            using var s = File.Create(fileName);
-            await using var ser = new CollectionSerializerAsync<X>(s, new FIFOWorkerConfig(maxConcurrentTasks: 2));
+            using var stream = File.Create(fileName);
+            await using var ser = new CollectionSerializerAsync<X>(stream, new FIFOWorkerConfig(maxConcurrentTasks: 2));
             foreach (var item in arr)
                 await ser.SerializeAsync(item);
         }

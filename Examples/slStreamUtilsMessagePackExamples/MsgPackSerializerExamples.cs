@@ -13,41 +13,43 @@ namespace slStreamUtilsMessagePackExamples
 {
     public static class MsgPackSerializerExamples
     {
-        private static Frame<X>[] GetSampleArray()
+        private static X[] GetSampleArray()
         {
-            return Enumerable.Range(0, 10).Select(f => (Frame<X>)new X() { b1 = f % 2 == 0, i1 = f, l1 = f % 3 }).ToArray();
+            return Enumerable.Range(0, 10).Select(f => new X() { b1 = f % 2 == 0, i1 = f, l1 = f % 3 }).ToArray();
+        }
+        private static ArrayX GetArrayX()
+        {
+            return new ArrayX() { arr = GetSampleArray().Select(f => (Frame<X>)f).ToArray() };
         }
         public static async Task Original_UnknownLengthArray_WriteAsync(string fileName)
         {
             var arr = GetSampleArray();
-            using var s = File.Create(fileName);
+            using var stream = File.Create(fileName);
             foreach (var obj in arr)
-            {
-                await MessagePackSerializer.SerializeAsync(s, obj, MessagePackSerializerOptions.Standard);
-            }
+                await MessagePackSerializer.SerializeAsync<Frame<X>>(stream, obj);
         }
         public static async Task New_UnknownLengthArray_WriteAsync(string fileName)
         {
             var arr = GetSampleArray();
-            using var s = File.Create(fileName);
-            await using var ser = new CollectionSerializerAsync<X>(s, new FIFOWorkerConfig(maxConcurrentTasks: 2));
+            using var stream = File.Create(fileName);
+            await using var ser = new CollectionSerializerAsync<X>(stream, maxConcurrentTasks: 2);
             foreach (var item in arr)
-                await ser.SerializeAsync(new Frame<X>(item));
+                await ser.SerializeAsync(item);
         }
 
         public static async Task Original_KnownLengthArray_WriteAsync(string fileName)
         {
             var opts = MessagePackSerializerOptions.Standard;
-            ArrayX obj = new ArrayX() { arr = GetSampleArray() };
-            using var s = File.Create(fileName);
-            await MessagePackSerializer.SerializeAsync(s, obj, opts);
+            ArrayX obj = GetArrayX();
+            using var stream = File.Create(fileName);
+            await MessagePackSerializer.SerializeAsync(stream, obj, opts);
         }
 
         public static async Task New_KnownLengthArray_WriteAsync(string fileName)
         {
             int totWorkerThreads = 2;
             var opts = new FrameParallelOptions(totWorkerThreads, MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
-            ArrayX obj = new ArrayX() { arr = GetSampleArray() };
+            ArrayX obj = GetArrayX();
             using var s = File.Create(fileName);
             await MessagePackSerializer.SerializeAsync(s, obj, opts);
         }

@@ -2,7 +2,6 @@
 All rights reserved.
 This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
-using BenchmarkDotNet.Running;
 using slStreamUtilsProtobufBenchmark.CollectionSerialization;
 using System;
 using System.Diagnostics;
@@ -14,10 +13,14 @@ namespace slStreamUtilsProtobufBenchmark
     {
         static async Task Main(string[] args)
         {
-            //BenchmarkRunner.Run(typeof(Program).Assembly);
-            //return;
+            await TestCollectionBenchmark();
+            Console.WriteLine("done");
+            Console.ReadLine();
+        }
 
-            var br = new CollectionBenchmark();
+        private static async Task TestCollectionBenchmark()
+        {
+            var br = new ProtobufCollectionBenchmark();
             await br.GlobalSetup();
             bool usingMemoryStream = true;
             Stopwatch sw = Stopwatch.StartNew();
@@ -44,10 +47,7 @@ namespace slStreamUtilsProtobufBenchmark
             sw.Stop();
             Console.WriteLine($"{nameof(br.WriteAsync_Parallel)} parallel={sw.ElapsedMilliseconds} ms");
 
-
             br.GlobalCleanup();
-            Console.WriteLine("done " + i);
-            Console.ReadLine();
         }
     }
-}
+    }

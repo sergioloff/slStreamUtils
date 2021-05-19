@@ -10,14 +10,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using slStreamUtilsMessagePack;
-using System.Threading;
-using System.Buffers;
-using slStreamUtils;
-using System.Linq;
 
-namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
+namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
 {
-
     public class Benchmark_Small_Config
     {
         public const int blockSize = 128;
@@ -29,17 +24,17 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
         public const int totBlocks = 64 * 16 * 4;
     }
 
-    public class CollectionBenchmark
+    public class MessagePackParallelBenchmark
     {
-        BenchmarkLogic<TestClassSmall> logic_small;
-        BenchmarkLogic<TestClassLarge> logic_large;
+        BenchmarkLogic<TestClassSmallBaseline, TestClassSmallParallel> logic_small;
+        BenchmarkLogic<TestClassLargeBaseline, TestClassLargeParallel> logic_large;
 
         [GlobalSetup]
         public async Task GlobalSetup()
         {
-            logic_small = new BenchmarkLogic<TestClassSmall>
+            logic_small = new BenchmarkLogic<TestClassSmallBaseline, TestClassSmallParallel>
                 (blockSize: Benchmark_Small_Config.blockSize, totBlocks: Benchmark_Small_Config.totBlocks);
-            logic_large = new BenchmarkLogic<TestClassLarge>
+            logic_large = new BenchmarkLogic<TestClassLargeBaseline, TestClassLargeParallel>
                 (blockSize: Benchmark_Large_Config.blockSize, totBlocks: Benchmark_Large_Config.totBlocks);
             await logic_small.SetupAsync();
             await logic_large.SetupAsync();
@@ -57,7 +52,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
         public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1 };
         public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1 };
         public int[] TotWorkerThreads_Choices = new int[] { 1, 2, 3, 4 };
-        public bool[] UsingMemoryStream_Choices = new bool[] { true, false };
+        public bool[] UsingMemoryStream_Choices = new bool[] { true };
         public bool[] IsSmall_Choices = new bool[] { true, false };
 
         [Benchmark]
@@ -95,9 +90,6 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                     foreach (int totalDelayedWriterBlocks in TotalDelayedWriterBlocks_Baseline_Choices)
                         yield return new object[] { isSmall, totalDelayedWriterBlocks, usingMemoryStream };
         }
-
-
-
 
         [Benchmark]
         [ArgumentsSource(nameof(BenchmarkArguments_Read_Parallel))]
@@ -140,13 +132,15 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
 
 
 
-    public class BenchmarkLogic<T>
-        where T : IDoStuff, IAmRandomInstantiable<T>, IMeasureSizeWithAllignmentPadding, new()
+    public class BenchmarkLogic<T_Baseline, T_Parallel>
+        where T_Baseline : IDoStuff, IAmRandomInstantiable<T_Baseline>, IMeasureSizeWithAllignmentPadding, new()
+        where T_Parallel : IDoStuff, IAmRandomInstantiable<T_Parallel>, IMeasureSizeWithAllignmentPadding, new()
     {
-        public int BlockSize { get; private set; }
-        public int TotBlocks { get; private set; }
+        public int BlockSize { get; protected set; }
+        public int TotBlocks { get; protected set; }
         MessagePackSerializerOptions opts_standard;
-        public T[] objArr { get; private set; }
+        public T_Baseline obj_baseline { get; protected set; }
+        public T_Parallel obj_parallel { get; protected set; }
         public string tmpFilename_baseline;
         public string tmpFilename_parallel;
         public string tmpFilesRoot;
@@ -165,10 +159,11 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
             tmpFilesRoot = Path.Combine(Path.GetTempPath(), "slStreamBenchmarks");
             if (!Directory.Exists(tmpFilesRoot))
                 Directory.CreateDirectory(tmpFilesRoot);
-            tmpFilename_baseline = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_baseline_{typeof(T).Name}.dat");
-            tmpFilename_parallel = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_parallel_{typeof(T).Name}.dat");
+            tmpFilename_baseline = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_baseline_{typeof(T_Baseline).Name}.dat");
+            tmpFilename_parallel = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_parallel_{typeof(T_Parallel).Name}.dat");
             opts_standard = MessagePackSerializerOptions.Standard;
-            objArr = GetRandInstanceArr(BlockSize, TotBlocks);
+            obj_baseline = BenchmarkLogicHelper.GetRandInstance<T_Baseline>(BlockSize, TotBlocks);
+            obj_parallel = BenchmarkLogicHelper.GetRandInstance<T_Parallel>(BlockSize, TotBlocks);
             ms_baseline = new MemoryStream();
             ms_parallel = new MemoryStream();
 
@@ -179,20 +174,25 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
             await WriteAsync_Parallel(1, null, usingMemoryStream: false);
             var File_size_baseline = new FileInfo(tmpFilename_baseline).Length;
             var File_size_parallel = new FileInfo(tmpFilename_parallel).Length;
-            var Mem_size_padded = objArr.Sum(f => f.GetSize()) + objArr.Length * IntPtr.Size;
-            var Mem_size_padded_SingleItem = objArr.First().GetSize();
-            Console.WriteLine($"{nameof(T)}: {typeof(T)}");
-            Console.WriteLine($"Memory size (padded) = {Mem_size_padded / ((double)1024 * 1024):f2} MB");
-            Console.WriteLine($"Memory size (padded) for 1 item = {Mem_size_padded_SingleItem / (double)1024:f2} KB");
+
+            var Mem_size_baseline_padded = obj_baseline.GetSize();
+            var Mem_size_padded_baseline_SingleItem = Mem_size_baseline_padded / TotBlocks;
+            var Mem_size_parallel_padded = obj_parallel.GetSize();
+            var Mem_size_padded_parallel_SingleItem = Mem_size_parallel_padded / TotBlocks;
+            Console.WriteLine($"{nameof(T_Baseline)}: {typeof(T_Baseline)}  {nameof(T_Parallel)}: {typeof(T_Parallel)}");
             Console.WriteLine($"Baseline file length (no framing data) = {File_size_baseline / ((double)1024 * 1024):f2} MB");
             Console.WriteLine($"File length (with framing data) = {File_size_parallel / ((double)1024 * 1024):f2} MB");
+            Console.WriteLine($"Memory size (padded, with framing data) = {Mem_size_parallel_padded / ((double)1024 * 1024):f2} MB");
+            Console.WriteLine($"Memory size (padded, with framing data) for 1 item = {Mem_size_padded_parallel_SingleItem / (double)1024:f2} KB");
+            Console.WriteLine($"Memory size (padded, no framing data) = {Mem_size_baseline_padded / ((double)1024 * 1024):f2} MB");
+            Console.WriteLine($"Memory size (padded, no framing data) for 1 item = {Mem_size_padded_baseline_SingleItem / (double)1024:f2} KB");
         }
 
         public void Cleanup()
         {
-            DelTempFile();
-            DelTempFile();
-            objArr = null;
+            DelTempFiles();
+            obj_baseline = default;
+            obj_parallel = default;
         }
 
 
@@ -202,19 +202,14 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 FileHelper.FlushFileCache(tmpFilename_baseline);
             try
             {
-                int res = 0;
                 using (StreamChain sc1 = new StreamChain())
                 {
-                    Stream s = sc1.ComposeChain(usingMemoryStream ? ms_baseline :
+                    Stream s = sc1.ComposeChain(
+                        usingMemoryStream ? ms_baseline :
                         File.Open(tmpFilename_baseline, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
-                    using (var streamReader = new MessagePackStreamReader(s, true))
-                        while (await streamReader.ReadAsync(CancellationToken.None) is ReadOnlySequence<byte> msgpack)
-                        {
-                            var obj = MessagePackSerializer.Deserialize<Frame<T>>(msgpack, opts_standard, CancellationToken.None).Item;
-                            res ^= obj.DoStuff();
-                        }
+                    var obj = await MessagePackSerializer.DeserializeAsync<T_Baseline>(s, opts_standard);
+                    return obj.DoStuff();
                 }
-                return res;
             }
             finally
             {
@@ -225,7 +220,6 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 }
             }
         }
-
         public async Task WriteAsync_Baseline(BufferedStreamWriterConfig sw_cfg, bool usingMemoryStream)
         {
             if (!usingMemoryStream)
@@ -237,16 +231,13 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 ms_baseline.SetLength(ms_baseline.Length);
                 ms_baseline.Position = 0;
             }
+
             using (StreamChain sc = new StreamChain())
             {
                 Stream s = sc.ComposeChain(
                     usingMemoryStream ? ms_baseline :
                     File.Open(tmpFilename_baseline, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
-                for (int ix = 0; ix < objArr.Length; ix++)
-                {
-                    T obj = objArr[ix];
-                    await MessagePackSerializer.SerializeAsync(s, new Frame<T>(obj), opts_standard);
-                }
+                await MessagePackSerializer.SerializeAsync(s, obj_baseline, opts_standard);
             }
             if (usingMemoryStream)
             {
@@ -263,17 +254,14 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 totWorkerThreads, opts_standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
             try
             {
-                int res = 0;
                 using (StreamChain sc1 = new StreamChain())
                 {
                     Stream s = sc1.ComposeChain(
                         usingMemoryStream ? ms_parallel :
                         File.Open(tmpFilename_parallel, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
-                    using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads), opts))
-                        await foreach (var i in dmp.DeserializeAsync(s))
-                            res ^= i.Item.DoStuff();
+                    var obj = await MessagePackSerializer.DeserializeAsync<T_Parallel>(s, opts);
+                    return obj.DoStuff();
                 }
-                return res;
             }
             finally
             {
@@ -302,9 +290,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 Stream s = sc.ComposeChain(
                     usingMemoryStream ? ms_parallel :
                     File.Open(tmpFilename_parallel, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
-                using (var smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads), new BatchSizeEstimatorConfig(), opts))
-                    foreach (var obj in objArr)
-                        await smp.SerializeAsync(new Frame<T>(obj));
+                await MessagePackSerializer.SerializeAsync(s, obj_parallel, opts);
             }
             if (usingMemoryStream)
             {
@@ -314,22 +300,24 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
         }
 
         #region helper methods
-        private void DelTempFile()
+        public void DelTempFiles()
         {
             if (Directory.Exists(tmpFilesRoot))
                 foreach (var file in new DirectoryInfo(tmpFilesRoot).GetFiles())
                     file.Delete();
         }
 
-        private T[] GetRandInstanceArr(int len1, int arrayLen)
-        {
-            RandHelper helper = new RandHelper();
-            T[] res = new T[arrayLen];
-            for (int f = 0; f < arrayLen; f++)
-                res[f] = new T().GetRandInstance(helper, len1);
-            return res;
-        }
-
         #endregion
     }
+
+    public static class BenchmarkLogicHelper
+    {
+        public static T GetRandInstance<T>(int len1, int arrayLen) where T : IAmRandomInstantiable<T>, new()
+        {
+            RandHelper helper = new RandHelper(1);
+            return new T().GetRandInstance(helper, len1, arrayLen);
+        }
+    }
+
+
 }

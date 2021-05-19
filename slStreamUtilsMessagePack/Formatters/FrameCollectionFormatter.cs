@@ -2,11 +2,11 @@
 All rights reserved.
 This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
-using MessagePack;
 using MessagePack.Formatters;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils;
+using slStreamUtils.ObjectPoolPolicy;
 using System;
 using System.Collections.Generic;
 

@@ -2,8 +2,13 @@
 All rights reserved.
 This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
+using Microsoft.Extensions.ObjectPool;
+using Microsoft.Toolkit.HighPerformance;
+using ProtoBuf;
 using slStreamUtils;
+using slStreamUtils.ObjectPoolPolicy;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,43 +18,85 @@ namespace slStreamUtilsProtobuf
     public class CollectionSerializerAsync<T> : IDisposable, IAsyncDisposable
     {
         private readonly Stream stream;
-        private FIFOWorker<T, MemoryStream> fifow;
+        private FIFOWorker<List<T>, MemoryStream> fifow;
+        private BatchSizeEstimator batchEstimator;
+        private ObjectPool<List<T>> objPoolList;
+        private ObjectPool<MemoryStream> objPoolMemoryStream;
+        private List<T> currentBatch;
+        private int desiredBatchSize;
+        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig) :
+            this(stream, fifowConfig, new BatchSizeEstimatorConfig())
+        { }
 
-        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig config)
+        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig, BatchSizeEstimatorConfig estimatorConfig)
         {
             this.stream = stream;
-            fifow = new FIFOWorker<T, MemoryStream>(config, HandleWorkerOutput);
-            ProtoBuf.Serializer.PrepareSerializer<T>();
+            fifow = new FIFOWorker<List<T>, MemoryStream>(fifowConfig, HandleWorkerOutput);
+            Serializer.PrepareSerializer<T>();
+            batchEstimator = new BatchSizeEstimator(estimatorConfig);
+            objPoolList = new DefaultObjectPool<List<T>>(new ListObjectPoolPolicy<T>(64), fifowConfig.MaxQueuedItems);
+            objPoolMemoryStream = new DefaultObjectPool<MemoryStream>(
+                new MemoryStreamObjectPoolPolicy(Math.Max(1024 * 64, estimatorConfig.DesiredBatchSize_bytes)),
+                fifowConfig.MaxQueuedItems);
+            desiredBatchSize = 1;
+            currentBatch = objPoolList.Get();
         }
 
-        protected virtual void WriteHeaderAndBody(Stream stream, T t, CancellationToken token)
+        public Task SerializeAsync(Frame<T> obj, CancellationToken token = default)
         {
-            ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, t, ProtoBuf.PrefixStyle.Base128, 1);
+            return SerializeAsync(obj.Item, token);
         }
-
-        public async Task SerializeAsync(Frame<T> obj, CancellationToken token = default)
+        public async Task SerializeAsync(T t, CancellationToken token = default)
         {
-            foreach (var ms in fifow.AddWorkItem(obj.Item, token))
-                await BufferToStreamAsync(ms, token).ConfigureAwait(false);
+            currentBatch.Add(t);
+            await CompleteBatch(false, token).ConfigureAwait(false);
         }
 
         public async Task FlushAsync(CancellationToken token = default)
         {
+            await CompleteBatch(true, token).ConfigureAwait(false);
             foreach (var ms in fifow.Flush(token))
-                await BufferToStreamAsync(ms, token).ConfigureAwait(false);
+                await BatchToStreamAsync(ms, token).ConfigureAwait(false);
         }
 
-        private MemoryStream HandleWorkerOutput(T t, CancellationToken token)
+        private async Task CompleteBatch(bool flushBatch, CancellationToken token)
         {
-            MemoryStream ms = new MemoryStream();
-            WriteHeaderAndBody(ms, t, token);
-            return ms;
+            if (flushBatch || currentBatch.Count >= desiredBatchSize)
+            {
+                foreach (var bw in fifow.AddWorkItem(currentBatch, token))
+                    await BatchToStreamAsync(bw, token).ConfigureAwait(false);
+                currentBatch = objPoolList.Get();
+                desiredBatchSize = batchEstimator.RecomendedBatchSize;
+            }
         }
 
-        private async Task BufferToStreamAsync(MemoryStream ms, CancellationToken token)
+        private MemoryStream HandleWorkerOutput(List<T> batch, CancellationToken token)
         {
-            await stream.WriteAsync(ms.GetBuffer(), 0, (int)ms.Position, token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
+            try
+            {
+                MemoryStream ms = objPoolMemoryStream.Get();
+                Serializer.Serialize(ms, new ListWrapper<T>(batch));
+                if (batch.Count > 0)
+                    batchEstimator.UpdateEstimate((float)ms.Position / (float)batch.Count); // update with avg instead of updating for every loop item. It's not exact, but it's faster
+
+                return ms;
+            }
+            finally
+            {
+                objPoolList.Return(batch);
+            }
+        }
+
+        private async Task BatchToStreamAsync(MemoryStream batchOut, CancellationToken token)
+        {
+            try
+            {
+                await stream.WriteAsync(batchOut.GetBuffer().AsMemory(0, (int)batchOut.Position), token);
+            }
+            finally
+            {
+                objPoolMemoryStream.Return(batchOut);
+            }
         }
 
         protected virtual void Dispose(bool disposing)
@@ -60,6 +107,10 @@ namespace slStreamUtilsProtobuf
                 fifow.Dispose();
             }
             fifow = null;
+            batchEstimator = null;
+            objPoolList = null;
+            objPoolMemoryStream = null;
+            currentBatch = null;
         }
         public void Dispose()
         {

@@ -32,7 +32,7 @@ namespace slStreamUtilsMessagePackBenchmark
             return s;
         }
 
-        private void Dispose(bool disposing)
+        public  void Dispose(bool disposing)
         {
             if (disposing)
             {

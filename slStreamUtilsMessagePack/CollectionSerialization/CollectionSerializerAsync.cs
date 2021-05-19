@@ -8,6 +8,7 @@ using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance;
 using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils;
+using slStreamUtils.ObjectPoolPolicy;
 using System;
 using System.Buffers;
 using System.IO;

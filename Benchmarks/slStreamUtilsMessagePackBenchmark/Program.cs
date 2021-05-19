@@ -2,7 +2,6 @@
 All rights reserved.
 This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
-using BenchmarkDotNet.Running;
 using slStreamUtilsMessagePackBenchmark.CollectionSerialization;
 using slStreamUtilsMessagePackBenchmark.ParallelSerialization;
 using System;
@@ -15,8 +14,6 @@ namespace slStreamUtilsMessagePackBenchmark
     {
         static async Task Main(string[] args)
         {
-            BenchmarkRunner.Run(typeof(Program).Assembly);
-            return;
             await TestParallelBenchmark();
             await TestCollectionBenchmark();
             Console.WriteLine("done");
@@ -25,7 +22,7 @@ namespace slStreamUtilsMessagePackBenchmark
 
         private static async Task TestCollectionBenchmark()
         {
-            var br = new CollectionBenchmark();
+            var br = new MessagePackCollectionBenchmark();
             await br.GlobalSetup();
             bool usingMemoryStream = true;
             Stopwatch sw = Stopwatch.StartNew();
@@ -56,7 +53,7 @@ namespace slStreamUtilsMessagePackBenchmark
 
         private static async Task TestParallelBenchmark()
         {
-            var br = new ParallelBenchmark();
+            var br = new MessagePackParallelBenchmark();
             await br.GlobalSetup();
             bool usingMemoryStream = true;
             Stopwatch sw = Stopwatch.StartNew();
