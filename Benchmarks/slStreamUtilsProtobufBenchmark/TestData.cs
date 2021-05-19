@@ -294,15 +294,15 @@ namespace slStreamUtilsProtobufBenchmark
 
     public class RandHelper
     {
-        public Random r;
+        public Rand r;
 
         public RandHelper()
         {
-            r = new Random(0);
+            r = new Rand(0);
         }
         public RandHelper(int seed)
         {
-            r = new Random(seed);
+            r = new Rand(seed);
         }
 
         public void GetRand(out int v)
@@ -329,12 +329,6 @@ namespace slStreamUtilsProtobufBenchmark
         {
             int len = r.Next(1, 200);
             v = Encoding.ASCII.GetString(Enumerable.Range(0, len).Select(f => (byte)('a' + r.Next(0, 4))).ToArray());
-        }
-        public void GetRand(out Guid v)
-        {
-            byte[] b = new byte[16];
-            r.NextBytes(b);
-            v = new Guid(b);
         }
 
     }

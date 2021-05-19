@@ -10,10 +10,12 @@ namespace slStreamUtilsBenchmarkLauncher
     {
         static void Main(string[] args)
         {
-            var cfg = DefaultConfig.Instance.AddJob(Job.Default
+            var cfg = DefaultConfig.Instance.AddJob(
+                    Job.Default
                     .WithRuntime(CoreRuntime.Core50)
                     .WithPlatform(Platform.X64)
                     .WithJit(Jit.RyuJit)
+                    .WithGcConcurrent(true)
                     .WithGcServer(true));
 
             BenchmarkRunner.Run(new[]{

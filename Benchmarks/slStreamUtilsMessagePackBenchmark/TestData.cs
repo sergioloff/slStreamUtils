@@ -9,7 +9,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace slStreamUtilsMessagePackBenchmark
 {
@@ -403,48 +402,5 @@ namespace slStreamUtilsMessagePackBenchmark
                 return 0;
             return arr.Select(f => f.Item.GetSize() + sizeof(int)).Sum();
         }
-    }
-
-    public class RandHelper
-    {
-        public Random r;
-
-        public RandHelper(int seed = 0)
-        {
-            r = new Random(seed);
-        }
-
-        public void GetRand(out int v)
-        {
-            v = r.Next(0, 4);
-        }
-        public void GetRand(out bool v)
-        {
-            v = r.Next(2) == 0;
-        }
-        public void GetRand(out long v)
-        {
-            v = (long)r.Next(4, 8) << 32 | (long)r.Next(8, 12);
-        }
-        public void GetRand(out DateTime v)
-        {
-            v = new DateTime(1900, 1, 1).AddYears(r.Next(12, 16)).AddDays(r.Next(16, 20)).AddSeconds(r.Next(20, 24));
-        }
-        public void GetRand(out TimeSpan v)
-        {
-            v = TimeSpan.FromSeconds(r.Next(20));
-        }
-        public void GetRand(out string v)
-        {
-            int len = r.Next(1, 200);
-            v = Encoding.ASCII.GetString(Enumerable.Range(0, len).Select(f => (byte)('a' + r.Next(0, 4))).ToArray());
-        }
-        public void GetRand(out Guid v)
-        {
-            byte[] b = new byte[16];
-            r.NextBytes(b);
-            v = new Guid(b);
-        }
-
     }
 }

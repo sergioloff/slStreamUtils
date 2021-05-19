@@ -40,23 +40,23 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 (blockSize: Benchmark_Small_Config.blockSize, totBlocks: Benchmark_Small_Config.totBlocks);
             logic_large = new BenchmarkLogic<TestClassLarge>
                 (blockSize: Benchmark_Large_Config.blockSize, totBlocks: Benchmark_Large_Config.totBlocks);
-            await logic_small.SetupAsync();
-            await logic_large.SetupAsync();
+            await logic_small.GlobalSetup();
+            await logic_large.GlobalSetup();
         }
 
         [GlobalCleanup]
         public void GlobalCleanup()
         {
-            logic_small.Cleanup();
-            logic_large.Cleanup();
+            logic_small.GlobalCleanup();
+            logic_large.GlobalCleanup();
         }
 
         public int[] TotalPreFetchBlocks_Baseline_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1, 4 };
+        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1 };
         public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1, 4 };
+        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1 };
         public int[] TotWorkerThreads_Choices = new int[] { 1, 2, 3, 4 };
-        public bool[] UsingMemoryStream_Choices = new bool[] { true, false };
+        public bool[] UsingMemoryStream_Choices = new bool[] { true };
         public bool[] IsSmall_Choices = new bool[] { true, false };
 
         [Benchmark]
@@ -139,10 +139,10 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
     public class BenchmarkLogic<T>
         where T : IDoStuff, IAmRandomInstantiable<T>, IMeasureSizeWithAllignmentPadding, new()
     {
-        public int BlockSize { get; private set; }
-        public int TotBlocks { get; private set; }
+        public int BlockSize { get; protected set; }
+        public int TotBlocks { get; protected set; }
         MessagePackSerializerOptions opts_standard;
-        public T[] objArr { get; private set; }
+        public T[] objArr { get; protected set; }
         public string tmpFilename_baseline;
         public string tmpFilename_parallel;
         public string tmpFilesRoot;
@@ -156,7 +156,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
             TotBlocks = totBlocks;
         }
 
-        public async Task SetupAsync()
+        public async Task GlobalSetup()
         {
             tmpFilesRoot = Path.Combine(Path.GetTempPath(), "slStreamBenchmarks");
             if (!Directory.Exists(tmpFilesRoot))
@@ -175,7 +175,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
             await WriteAsync_Parallel(1, null, usingMemoryStream: false);
             var File_size_baseline = new FileInfo(tmpFilename_baseline).Length;
             var File_size_parallel = new FileInfo(tmpFilename_parallel).Length;
-            var Mem_size_padded = objArr.Sum(f => f.GetSize()) + objArr.Length * IntPtr.Size;
+            var Mem_size_padded = objArr.Sum(f => (long)f.GetSize()) + objArr.Length * IntPtr.Size;
             var Mem_size_padded_SingleItem = objArr.First().GetSize();
             Console.WriteLine($"{nameof(T)}: {typeof(T)}");
             Console.WriteLine($"Memory size (padded) = {Mem_size_padded / ((double)1024 * 1024):f2} MB");
@@ -184,7 +184,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
             Console.WriteLine($"File length (with framing data) = {File_size_parallel / ((double)1024 * 1024):f2} MB");
         }
 
-        public void Cleanup()
+        public void GlobalCleanup()
         {
             DelTempFile();
             DelTempFile();
@@ -255,8 +255,6 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
         {
             if (!usingMemoryStream)
                 FileHelper.FlushFileCache(tmpFilename_parallel);
-            var opts = new FrameParallelOptions(
-                totWorkerThreads, opts_standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
             try
             {
                 int res = 0;
@@ -265,7 +263,7 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                     Stream s = sc1.ComposeChain(
                         usingMemoryStream ? ms_parallel :
                         File.Open(tmpFilename_parallel, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
-                    using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads), opts))
+                    using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads), opts_standard))
                         await foreach (var i in dmp.DeserializeAsync(s))
                             res ^= i.Item.DoStuff();
                 }
@@ -292,13 +290,12 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
                 ms_parallel.Position = 0;
             }
             FileHelper.FlushFileCache(tmpFilename_parallel);
-            var opts = new FrameParallelOptions(totWorkerThreads, opts_standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
             using (StreamChain sc = new StreamChain())
             {
                 Stream s = sc.ComposeChain(
                     usingMemoryStream ? ms_parallel :
                     File.Open(tmpFilename_parallel, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
-                using (var smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads), new BatchSizeEstimatorConfig(), opts))
+                using (var smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads), new BatchSizeEstimatorConfig(), opts_standard))
                     foreach (var obj in objArr)
                         await smp.SerializeAsync(new Frame<T>(obj));
             }
@@ -310,14 +307,15 @@ namespace slStreamUtilsMessagePackBenchmark.CollectionSerialization
         }
 
         #region helper methods
-        private void DelTempFile()
+
+        public void DelTempFile()
         {
             if (Directory.Exists(tmpFilesRoot))
                 foreach (var file in new DirectoryInfo(tmpFilesRoot).GetFiles())
                     file.Delete();
         }
 
-        private T[] GetRandInstanceArr(int len1, int arrayLen)
+        public static T[] GetRandInstanceArr(int len1, int arrayLen)
         {
             RandHelper helper = new RandHelper();
             T[] res = new T[arrayLen];

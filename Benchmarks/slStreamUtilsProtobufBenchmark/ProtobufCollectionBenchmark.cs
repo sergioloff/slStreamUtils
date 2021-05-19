@@ -50,10 +50,10 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
             logic_large.Cleanup();
         }
 
-        public int[] TotalPreFetchBlocks_Baseline_Choices = new int[] { -1, 0, 4 };
-        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1, 0, 4 };
-        public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1, 0, 4 };
-        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1, 0, 4 };
+        public int[] TotalPreFetchBlocks_Baseline_Choices = new int[] { -1 };
+        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1 };
+        public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1 };
+        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1 };
         public int[] TotWorkerThreads_Choices = new int[] { 1, 2, 3, 4 };
         public bool[] UsingMemoryStream_Choices = new bool[] { true };
         public bool[] IsSmall_Choices = new bool[] { true, false };

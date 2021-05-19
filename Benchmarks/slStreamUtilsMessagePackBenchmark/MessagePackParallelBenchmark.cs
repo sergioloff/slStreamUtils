@@ -48,11 +48,11 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
         }
 
         public int[] TotalPreFetchBlocks_Baseline_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1, 4 };
+        public int[] TotalDelayedWriterBlocks_Baseline_Choices = new int[] { -1 };
         public int[] TotalPreFetchBlocks_Parallel_Choices = new int[] { -1 };
-        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1, 4 };
+        public int[] TotalDelayedWriterBlocks_Parallel_Choices = new int[] { -1 };
         public int[] TotWorkerThreads_Choices = new int[] { 1, 2, 3, 4 };
-        public bool[] UsingMemoryStream_Choices = new bool[] { true, false };
+        public bool[] UsingMemoryStream_Choices = new bool[] { true };
         public bool[] IsSmall_Choices = new bool[] { true, false };
 
         [Benchmark]
@@ -136,11 +136,11 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
         where T_Baseline : IDoStuff, IAmRandomInstantiable<T_Baseline>, IMeasureSizeWithAllignmentPadding, new()
         where T_Parallel : IDoStuff, IAmRandomInstantiable<T_Parallel>, IMeasureSizeWithAllignmentPadding, new()
     {
-        public int BlockSize { get; private set; }
-        public int TotBlocks { get; private set; }
+        public int BlockSize { get; protected set; }
+        public int TotBlocks { get; protected set; }
         MessagePackSerializerOptions opts_standard;
-        public T_Baseline obj_baseline { get; private set; }
-        public T_Parallel obj_parallel { get; private set; }
+        public T_Baseline obj_baseline { get; protected set; }
+        public T_Parallel obj_parallel { get; protected set; }
         public string tmpFilename_baseline;
         public string tmpFilename_parallel;
         public string tmpFilesRoot;
@@ -162,8 +162,8 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
             tmpFilename_baseline = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_baseline_{typeof(T_Baseline).Name}.dat");
             tmpFilename_parallel = Path.Combine(tmpFilesRoot, $"tmp_MP_PS_parallel_{typeof(T_Parallel).Name}.dat");
             opts_standard = MessagePackSerializerOptions.Standard;
-            obj_baseline = GetRandInstance<T_Baseline>(BlockSize, TotBlocks);
-            obj_parallel = GetRandInstance<T_Parallel>(BlockSize, TotBlocks);
+            obj_baseline = BenchmarkLogicHelper.GetRandInstance<T_Baseline>(BlockSize, TotBlocks);
+            obj_parallel = BenchmarkLogicHelper.GetRandInstance<T_Parallel>(BlockSize, TotBlocks);
             ms_baseline = new MemoryStream();
             ms_parallel = new MemoryStream();
 
@@ -300,21 +300,23 @@ namespace slStreamUtilsMessagePackBenchmark.ParallelSerialization
         }
 
         #region helper methods
-        private void DelTempFiles()
+        public void DelTempFiles()
         {
             if (Directory.Exists(tmpFilesRoot))
                 foreach (var file in new DirectoryInfo(tmpFilesRoot).GetFiles())
                     file.Delete();
         }
 
-        private T GetRandInstance<T>(int len1, int arrayLen) where T : IAmRandomInstantiable<T>, new()
+        #endregion
+    }
+
+    public static class BenchmarkLogicHelper
+    {
+        public static T GetRandInstance<T>(int len1, int arrayLen) where T : IAmRandomInstantiable<T>, new()
         {
             RandHelper helper = new RandHelper(1);
             return new T().GetRandInstance(helper, len1, arrayLen);
         }
-
-
-        #endregion
     }
 
 
