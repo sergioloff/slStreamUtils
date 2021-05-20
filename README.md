@@ -25,6 +25,35 @@ Two data sets are used:
 * Large Objects – a collection of 4096 objects, each taking ~16KB, for a combined size of ~67MB
 * Small Objects – a collection of 123K objects, each taking 550B, for a combined size of aprox. 66MB 
 
+## Protobuf - collection of undetermined length 
+
+This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
+
+![Protobuf - performance chart for collection of undetermined length](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/PB_coll.png)
+	
+It compares the native implementations using Protobuf-net
+	
+```csharp
+foreach (var obj in arr)
+	ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, obj, ProtoBuf.PrefixStyle.Base128, 1);
+
+X obj;
+while ((obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(stream, ProtoBuf.PrefixStyle.Base128, 1)) != null)
+	yield return obj;
+```
+
+vs parallel implementation in slStreamUtils using an increasingly larger # of threads
+    
+```csharp
+await using var ser = new CollectionSerializerAsync<X>(stream, new FIFOWorkerConfig(maxConcurrentTasks: 2));
+foreach (var item in arr)
+	await ser.SerializeAsync(item);
+
+using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
+await foreach (var item in ds.DeserializeAsync(stream))
+	yield return item.Item;
+```
+
 ## MessagePack - collection of undetermined length 
 
 This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
@@ -115,33 +144,4 @@ And to make the above code run in parallel, just add the new Frame resolver to y
 ```csharp
 var opts = new FrameParallelOptions(totWorkerThreads, 
 	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
-```
-
-## Protobuf - collection of undetermined length 
-
-This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
-
-![Protobuf - performance chart for collection of undetermined length](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/PB_coll.png)
-	
-It compares the native implementations using Protobuf-net
-	
-```csharp
-foreach (var obj in arr)
-	ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, obj, ProtoBuf.PrefixStyle.Base128, 1);
-
-X obj;
-while ((obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(stream, ProtoBuf.PrefixStyle.Base128, 1)) != null)
-	yield return obj;
-```
-
-vs parallel implementation in slStreamUtils using an increasingly larger # of threads
-    
-```csharp
-await using var ser = new CollectionSerializerAsync<X>(stream, new FIFOWorkerConfig(maxConcurrentTasks: 2));
-foreach (var item in arr)
-	await ser.SerializeAsync(item);
-
-using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
-await foreach (var item in ds.DeserializeAsync(stream))
-	yield return item.Item;
 ```
