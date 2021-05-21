@@ -25,6 +25,35 @@ Two data sets are used:
 * Large Objects – a collection of 4096 objects, each taking ~16KB, for a combined size of ~67MB
 * Small Objects – a collection of 123K objects, each taking 550B, for a combined size of aprox. 66MB 
 
+## Protobuf - collection of undetermined length 
+
+This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
+
+![Protobuf - performance chart for collection of undetermined length](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/PB_coll.png)
+	
+It compares the native implementations using Protobuf-net
+	
+```csharp
+foreach (var obj in arr)
+	ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, obj, ProtoBuf.PrefixStyle.Base128, 1);
+
+X obj;
+while ((obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(stream, ProtoBuf.PrefixStyle.Base128, 1)) != null)
+	yield return obj;
+```
+
+vs parallel implementation in slStreamUtils using an increasingly larger # of threads
+    
+```csharp
+await using var ser = new CollectionSerializerAsync<X>(stream, new FIFOWorkerConfig(maxConcurrentTasks: 2));
+foreach (var item in arr)
+	await ser.SerializeAsync(item);
+
+using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
+await foreach (var item in ds.DeserializeAsync(stream))
+	yield return item.Item;
+```
+
 ## MessagePack - collection of undetermined length 
 
 This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
@@ -56,6 +85,14 @@ await foreach (var item in ds.DeserializeAsync(stream))
 ```
 
 Note: It's natural to see MessagePack's original implementation being significantly slower because we’re using MessagePack.MessagePackStreamReader to read from a stream of undetermined length. This method will scan ahead and parse the stream until it finds the end of the current element, returning that segment of bytes, and only then will we deserialize it using MessagePackSerializer.Deserialize, ultimately resulting in having to do the same work twice, which is inevitable since we don't have any framing information telling us where the current message block ends. If we were deserializing buffers of a known size, we’d only have to call MessagePackSerializer.Deserialize, which would be much faster, as can be seen in the next benchmark.
+
+## MessagePack - fixed-size arrays
+	
+This benchmark measures the read and write speed of an object containing fields of type Frame<T>[] to/from a MemoryStream.
+
+![performance chart for MessagePack with fixed-size arrays](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/MP_par.png)
+
+Original type:
 
 ## MessagePack - fixed-size arrays
 	
@@ -117,31 +154,18 @@ var opts = new FrameParallelOptions(totWorkerThreads,
 	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
 ```
 
-## Protobuf - collection of undetermined length 
+To (de)serialize an instance of SomeClass using MessagePack-CSharp's original implementation, one would write
 
-This benchmark measures the read and write speed of a collection of objects of the same type T and of unknown length (as for example iterating an IEnumerable<T>) to/from a MemoryStream.
-
-![Protobuf - performance chart for collection of undetermined length](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/PB_coll.png)
-	
-It compares the native implementations using Protobuf-net
-	
 ```csharp
-foreach (var obj in arr)
-	ProtoBuf.Serializer.SerializeWithLengthPrefix(stream, obj, ProtoBuf.PrefixStyle.Base128, 1);
+await MessagePackSerializer.SerializeAsync(stream, obj, opts);
 
-X obj;
-while ((obj = ProtoBuf.Serializer.DeserializeWithLengthPrefix<X>(stream, ProtoBuf.PrefixStyle.Base128, 1)) != null)
-	yield return obj;
+var newObj = await MessagePackSerializer.DeserializeAsync<ArrayX>(stream, opts);
+    newObj = await MessagePackSerializer.DeserializeAsync<ArrayX>(s2, opts); // this will process ArrayX.arr in parallel while loading since it has framing data
+```
+And to make the above code run in parallel, just add the new Frame resolver to your options
+Besides the examples in the Examples and Benchmark folder, I recomend to [read my blog](https://slstreamutils.blogspot.com/) which contains more in-depth information about the techniques used, particularly for the stream framing.
+```csharp
+var opts = new FrameParallelOptions(totWorkerThreads, 
+	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
 ```
 
-vs parallel implementation in slStreamUtils using an increasingly larger # of threads
-    
-```csharp
-await using var ser = new CollectionSerializerAsync<X>(stream, new FIFOWorkerConfig(maxConcurrentTasks: 2));
-foreach (var item in arr)
-	await ser.SerializeAsync(item);
-
-using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
-await foreach (var item in ds.DeserializeAsync(stream))
-	yield return item.Item;
-```
