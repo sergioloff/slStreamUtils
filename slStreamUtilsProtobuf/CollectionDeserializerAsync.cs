@@ -13,6 +13,8 @@ using Microsoft.Toolkit.HighPerformance;
 using Microsoft.Toolkit.HighPerformance.Buffers;
 using slStreamUtils.ObjectPoolPolicy;
 using Microsoft.Extensions.ObjectPool;
+using ProtoBuf.Meta;
+using ProtoBuf;
 
 namespace slStreamUtilsProtobuf
 {
@@ -22,6 +24,8 @@ namespace slStreamUtilsProtobuf
         private ObjectPool<List<int>> objPoolList;
         private FIFOWorker<BatchIn, BatchOut> fifow;
         private int desiredBatchSize_bytes;
+        private TypeModel typeModel;
+        private Type t_ParallelServices_ArrayWrapper;
 
         private struct BatchIn
         {
@@ -30,22 +34,27 @@ namespace slStreamUtilsProtobuf
         }
         private struct BatchOut
         {
-            public List<int> Lengths;
             public T[] elements;
         }
 
-        public CollectionDeserializerAsync(FIFOWorkerConfig fifowConfig, int desiredBatchSize_bytes = 1024 * 64)
+        public CollectionDeserializerAsync(FIFOWorkerConfig fifowConfig, int desiredBatchSize_bytes = 1024 * 64) :
+            this(fifowConfig, RuntimeTypeModel.Default, desiredBatchSize_bytes)
+        {
+        }
+        public CollectionDeserializerAsync(FIFOWorkerConfig fifowConfig, TypeModel typeModel, int desiredBatchSize_bytes = 1024 * 64)
         {
             this.desiredBatchSize_bytes = desiredBatchSize_bytes;
             fifow = new FIFOWorker<BatchIn, BatchOut>(fifowConfig, HandleWorkerOutput);
-            ProtoBuf.Serializer.PrepareSerializer<T>();
+            this.typeModel = typeModel;
+            t_ParallelServices_ArrayWrapper = typeof(ParallelServices_ArrayWrapper<T>);
+            typeModel.SetupParallelServices<T>();
             objPoolBufferWriterSerializedBatch = new DefaultObjectPool<ArrayPoolBufferWriter<byte>>(
                 new ArrayPoolBufferWriterObjectPoolPolicy<byte>(Math.Max(1024 * 64, desiredBatchSize_bytes)),
                 fifowConfig.MaxQueuedItems);
             objPoolList = new DefaultObjectPool<List<int>>(new ListObjectPoolPolicy<int>(64), fifowConfig.MaxQueuedItems);
         }
 
-        public async IAsyncEnumerable<Frame<T>> DeserializeAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
+        public async IAsyncEnumerable<T> DeserializeAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
         {
             BatchIn currentBatch = new BatchIn();
             int currentBatchTotalSize = 0;
@@ -56,7 +65,7 @@ namespace slStreamUtilsProtobuf
                 if (currentBatchTotalSize + itemLength > desiredBatchSize_bytes && currentBatchTotalElements > 0)
                 {
                     // send prev batch
-                    foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                    foreach (T t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
                         yield return t;
                     currentBatchTotalSize = 0;
                     currentBatchTotalElements = 0;
@@ -72,41 +81,32 @@ namespace slStreamUtilsProtobuf
                 currentBatch.Lengths.Add(itemLength);
             }
             if (currentBatchTotalElements > 0) // send unfinished batch
-                foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                foreach (T t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
                     yield return t;
-            foreach (Frame<T> t in IterateOutputBatch(fifow.Flush(token)))
+            foreach (T t in IterateOutputBatch(fifow.Flush(token)))
                 yield return t;
         }
 
-        private IEnumerable<Frame<T>> IterateOutputBatch(IEnumerable<BatchOut> outBatches)
+        private IEnumerable<T> IterateOutputBatch(IEnumerable<BatchOut> outBatches)
         {
             foreach (BatchOut batch in outBatches)
             {
-                try
-                {
-                    for (int itemIx = 0; itemIx < batch.elements.Length; itemIx++)
-                        yield return new Frame<T>(batch.Lengths[itemIx], batch.elements[itemIx]);
-                }
-                finally
-                {
-                    objPoolList.Return(batch.Lengths);
-                }
+                for (int itemIx = 0; itemIx < batch.elements.Length; itemIx++)
+                    yield return batch.elements[itemIx];
             }
         }
 
         private bool TryReadHeader(Stream s, out int length)
         {
-            int ib = s.ReadByte();
-            if (ib == -1)
+            length = ProtoReader.ReadLengthPrefix(s, true, PrefixStyle.Base128, out int fieldNumber, out int bytesRead);
+            if (bytesRead == 0)
             {
                 length = 0;
                 return false;
             }
-            byte b = (byte)ib;
-            if (b != ProtobufConsts.protoRepeatedTag1)
-                throw new StreamSerializationException($"invalid proto element found: {b}, expected {ProtobufConsts.protoRepeatedTag1}");
-
-            return ProtoBuf.Serializer.TryReadLengthPrefix(s, ProtoBuf.PrefixStyle.Base128, out length);
+            if (fieldNumber != TypeModel.ListItemTag)
+                throw new StreamSerializationException($"invalid proto item tag found: {fieldNumber}, expected {TypeModel.ListItemTag}");
+            return true;
         }
 
         private void WriteHeader(ArrayPoolBufferWriter<byte> buf, int length)
@@ -136,12 +136,15 @@ namespace slStreamUtilsProtobuf
         {
             try
             {
-                var arrT = ProtoBuf.Serializer.Deserialize<ArrayWrapper<T>>(batch.concatenatedBodies.WrittenSpan).Array;
-                return new BatchOut() { Lengths = batch.Lengths, elements = arrT };
+                var obj = typeModel.Deserialize(t_ParallelServices_ArrayWrapper, batch.concatenatedBodies.WrittenSpan);
+                if (obj is ParallelServices_ArrayWrapper<T> arrWT)
+                    return new BatchOut() { elements = arrWT.Array };
+                else throw new StreamSerializationException($"Invalid deserialized element type. Expected {t_ParallelServices_ArrayWrapper}, got [{(obj is null ? "null" : obj.GetType().ToString())}]");
             }
             finally
             {
                 objPoolBufferWriterSerializedBatch.Return(batch.concatenatedBodies);
+                objPoolList.Return(batch.Lengths);
             }
         }
 
@@ -165,7 +168,8 @@ namespace slStreamUtilsProtobuf
             fifow = null;
             objPoolBufferWriterSerializedBatch = null;
             objPoolList = null;
-
+            typeModel = null;
+            t_ParallelServices_ArrayWrapper = null;
         }
         public void Dispose()
         {

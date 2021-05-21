@@ -23,7 +23,7 @@ namespace slStreamUtilsProtobufExamples
             using var stream = File.OpenRead(fileName);
             using var ds = new CollectionDeserializerAsync<X>(new FIFOWorkerConfig(maxConcurrentTasks: 2));
             await foreach (var item in ds.DeserializeAsync(stream))
-                yield return item.Item;
+                yield return item;
         }
     }
 }

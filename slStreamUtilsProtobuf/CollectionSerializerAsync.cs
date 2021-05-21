@@ -4,7 +4,7 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. */
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Toolkit.HighPerformance;
-using ProtoBuf;
+using ProtoBuf.Meta;
 using slStreamUtils;
 using slStreamUtils.ObjectPoolPolicy;
 using System;
@@ -24,15 +24,23 @@ namespace slStreamUtilsProtobuf
         private ObjectPool<MemoryStream> objPoolMemoryStream;
         private List<T> currentBatch;
         private int desiredBatchSize;
+        private TypeModel typeModel;
+
         public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig) :
-            this(stream, fifowConfig, new BatchSizeEstimatorConfig())
+            this(stream, fifowConfig, new BatchSizeEstimatorConfig(), RuntimeTypeModel.Default)
         { }
 
-        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig, BatchSizeEstimatorConfig estimatorConfig)
+        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig, TypeModel typeModel) :
+            this(stream, fifowConfig, new BatchSizeEstimatorConfig(), typeModel)
+        { }
+
+        public CollectionSerializerAsync(Stream stream, FIFOWorkerConfig fifowConfig, BatchSizeEstimatorConfig estimatorConfig, TypeModel typeModel)
         {
+
             this.stream = stream;
             fifow = new FIFOWorker<List<T>, MemoryStream>(fifowConfig, HandleWorkerOutput);
-            Serializer.PrepareSerializer<T>();
+            this.typeModel = typeModel;
+            typeModel.SetupParallelServices<T>();
             batchEstimator = new BatchSizeEstimator(estimatorConfig);
             objPoolList = new DefaultObjectPool<List<T>>(new ListObjectPoolPolicy<T>(64), fifowConfig.MaxQueuedItems);
             objPoolMemoryStream = new DefaultObjectPool<MemoryStream>(
@@ -42,10 +50,6 @@ namespace slStreamUtilsProtobuf
             currentBatch = objPoolList.Get();
         }
 
-        public Task SerializeAsync(Frame<T> obj, CancellationToken token = default)
-        {
-            return SerializeAsync(obj.Item, token);
-        }
         public async Task SerializeAsync(T t, CancellationToken token = default)
         {
             currentBatch.Add(t);
@@ -75,7 +79,8 @@ namespace slStreamUtilsProtobuf
             try
             {
                 MemoryStream ms = objPoolMemoryStream.Get();
-                Serializer.Serialize(ms, new ListWrapper<T>(batch));
+
+                typeModel.Serialize(ms, new ParallelServices_ListWrapper<T>(batch));
                 if (batch.Count > 0)
                     batchEstimator.UpdateEstimate((float)ms.Position / (float)batch.Count); // update with avg instead of updating for every loop item. It's not exact, but it's faster
 
@@ -111,6 +116,7 @@ namespace slStreamUtilsProtobuf
             objPoolList = null;
             objPoolMemoryStream = null;
             currentBatch = null;
+            typeModel = null;
         }
         public void Dispose()
         {

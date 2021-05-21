@@ -23,14 +23,14 @@ namespace DataExporterToPython
                 originalArray[f - 1] = new TestClass() { b1 = f % 2 == 0, l1 = DateTime.Now.AddSeconds(f).Ticks, i1 = f, i2 = -f };
             TestClassMPContainer container = new TestClassMPContainer() { arr = originalArray.Select(f => (slMsgPack.Frame<TestClass>)f).ToArray() };
 
-            string protostr = ProtoBuf.Serializer.GetProto<slProto.ArrayWrapper<TestClass>>();
+            string protostr = ProtoBuf.Serializer.GetProto<slProto.ParallelServices_ArrayWrapper<TestClass>>();
             string pythonProj = Path.Combine(Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.Parent.Parent.FullName, @"Examples\PythonDeserializationTest");
             File.WriteAllText(Path.Combine(pythonProj, "TestClass.proto"), protostr);
 
             using (var fw = File.Create(Path.Combine(pythonProj, "TestClassCollection_proto.dat")))
             await using (var ser = new slProto.CollectionSerializerAsync<TestClass>(fw, new FIFOWorkerConfig(1)))
                 foreach (var item in originalArray)
-                    await ser.SerializeAsync(new slProto.Frame<TestClass>(item));
+                    await ser.SerializeAsync(item);
 
             using (var fw = File.Create(Path.Combine(pythonProj, "TestClassCollection_msgPack.dat")))
             await using (var ser = new slMsgPack.CollectionSerializerAsync<TestClass>(fw, new FIFOWorkerConfig(1)))

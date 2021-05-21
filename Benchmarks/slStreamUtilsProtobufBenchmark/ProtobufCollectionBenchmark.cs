@@ -12,6 +12,7 @@ using slStreamUtils;
 using System.Linq;
 using ProtoBuf;
 using slStreamUtilsProtobuf;
+using ProtoBuf.Meta;
 
 namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
 {
@@ -144,7 +145,7 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
         public string tmpFilesRoot;
         public MemoryStream ms_baseline;
         public MemoryStream ms_parallel;
-
+        public TypeModel model;
 
         public BenchmarkLogic(int blockSize, int totBlocks)
         {
@@ -154,6 +155,16 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
 
         public async Task SetupAsync()
         {
+            RuntimeTypeModel rtModel = RuntimeTypeModel.Create();
+            rtModel.Add(typeof(TestStructSmall1));
+            rtModel.Add(typeof(TestStructSmall2));
+            rtModel.Add(typeof(TestStructLarge1));
+            rtModel.Add(typeof(TestClassSmall));
+            rtModel.Add(typeof(TestClassLarge));
+            rtModel.RegisterParallelServices<TestClassSmall>();
+            rtModel.RegisterParallelServices<TestClassLarge>();
+            model = rtModel.Compile();
+
             tmpFilesRoot = Path.Combine(Path.GetTempPath(), "slStreamBenchmarks");
             if (!Directory.Exists(tmpFilesRoot))
                 Directory.CreateDirectory(tmpFilesRoot);
@@ -186,13 +197,13 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
             objArr = null;
         }
 
-
         public int Read_Baseline(BufferedStreamReaderConfig config_r, bool usingMemoryStream)
         {
             if (!usingMemoryStream)
                 FileHelper.FlushFileCache(tmpFilename_baseline);
             try
             {
+                Type t = typeof(T);
                 int res = 0;
                 using (StreamChain sc1 = new StreamChain())
                 {
@@ -200,10 +211,13 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                         File.Open(tmpFilename_baseline, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
                     do
                     {
-                        T obj = Serializer.DeserializeWithLengthPrefix<T>(s, PrefixStyle.Base128, 1);
-                        if (obj == null)
+                        object obj = model.DeserializeWithLengthPrefix(s, null, t, PrefixStyle.Base128, 1);
+                        if (obj is T objT)
+                            res ^= objT.DoStuff();
+                        else if (obj is null)
                             break;
-                        res ^= obj.DoStuff();
+                        else
+                            throw new Exception("unexpected obj type deserialized");
                     } while (true);
                 }
                 return res;
@@ -234,8 +248,9 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                 Stream s = sc.ComposeChain(
                     usingMemoryStream ? ms_baseline :
                     File.Open(tmpFilename_baseline, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
+                Type t = typeof(T);
                 foreach (T obj in objArr)
-                    Serializer.SerializeWithLengthPrefix(s, obj, PrefixStyle.Base128, 1);
+                    model.SerializeWithLengthPrefix(s, obj, t, PrefixStyle.Base128, 1);
             }
             if (usingMemoryStream)
             {
@@ -256,9 +271,9 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                     Stream s = sc1.ComposeChain(
                         usingMemoryStream ? ms_parallel :
                         File.Open(tmpFilename_parallel, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
-                    using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads)))
+                    using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads), model))
                         await foreach (var i in dmp.DeserializeAsync(s))
-                            res ^= i.Item.DoStuff();
+                            res ^= i.DoStuff();
                 }
                 return res;
             }
@@ -271,6 +286,7 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                 }
             }
         }
+
         public async Task WriteAsync_Parallel(int totWorkerThreads, BufferedStreamWriterConfig sw_cfg, bool usingMemoryStream)
         {
             if (!usingMemoryStream)
@@ -288,9 +304,9 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                 Stream s = sc.ComposeChain(
                     usingMemoryStream ? ms_parallel :
                     File.Open(tmpFilename_parallel, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
-                using (CollectionSerializerAsync<T> smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads)))
+                using (CollectionSerializerAsync<T> smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads), model))
                     foreach (var obj in objArr)
-                        await smp.SerializeAsync(new Frame<T>(obj));
+                        await smp.SerializeAsync(obj);
             }
             if (usingMemoryStream)
             {

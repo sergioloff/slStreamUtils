@@ -94,6 +94,14 @@ This benchmark measures the read and write speed of an object containing fields 
 
 Original type:
 
+## MessagePack - fixed-size arrays
+	
+This benchmark measures the read and write speed of an object containing fields of type Frame<T>[] to/from a MemoryStream.
+
+![performance chart for MessagePack with fixed-size arrays](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/MP_par.png)
+
+Original type:
+
 ```csharp
 [MessagePackObject]
 public class SomeClass
@@ -145,3 +153,19 @@ And to make the above code run in parallel, just add the new Frame resolver to y
 var opts = new FrameParallelOptions(totWorkerThreads, 
 	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
 ```
+
+To (de)serialize an instance of SomeClass using MessagePack-CSharp's original implementation, one would write
+
+```csharp
+await MessagePackSerializer.SerializeAsync(stream, obj, opts);
+
+var newObj = await MessagePackSerializer.DeserializeAsync<ArrayX>(stream, opts);
+    newObj = await MessagePackSerializer.DeserializeAsync<ArrayX>(s2, opts); // this will process ArrayX.arr in parallel while loading since it has framing data
+```
+And to make the above code run in parallel, just add the new Frame resolver to your options
+Besides the examples in the Examples and Benchmark folder, I recomend to [read my blog](https://slstreamutils.blogspot.com/) which contains more in-depth information about the techniques used, particularly for the stream framing.
+```csharp
+var opts = new FrameParallelOptions(totWorkerThreads, 
+	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
+```
+

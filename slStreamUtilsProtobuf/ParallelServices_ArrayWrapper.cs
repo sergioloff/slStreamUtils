@@ -8,14 +8,14 @@ using System.Collections.Generic;
 namespace slStreamUtilsProtobuf
 {
     [ProtoContract]
-    public class ArrayWrapper<T>
+    public class ParallelServices_ArrayWrapper<T>
     {
-        public ArrayWrapper(T[] items)
+        public ParallelServices_ArrayWrapper(T[] items)
         {
             Array = items;
         }
 
-        public ArrayWrapper()
+        public ParallelServices_ArrayWrapper()
         {
             Array = default;
         }

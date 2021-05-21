@@ -38,10 +38,10 @@ namespace slStreamUtilsProtobufTest
         public async Task SerializeAsync_ResultBufferMatchesExpected(int totItems, int totThreads, int maxQueuedItems)
         {
             var cfg = GetConfig(totThreads, maxQueuedItems);
-            Frame<TestItemPB>[] originalArray = new Frame<TestItemPB>[totItems];
+            TestItemPB[] originalArray = new TestItemPB[totItems];
             List<TestItemPB> deserializedArray = new List<TestItemPB>();
             for (int f = 0; f < totItems; f++)
-                originalArray[f] = new Frame<TestItemPB>(new TestItemPB() { f = (byte)(1 + f % 32) });
+                originalArray[f] = new TestItemPB() { f = (byte)(1 + f % 32) };
             MemoryStream ms = new MemoryStream();
 
             await using (var ser = new CollectionSerializerAsync<TestItemPB>(ms, cfg))
@@ -58,7 +58,7 @@ namespace slStreamUtilsProtobufTest
                     deserializedArray.Add(obj);
                 }
             }
-            Assert.AreEqual(originalArray.Select(f => f.Item.f).ToArray(), deserializedArray.Select(t => t.f).ToArray());
+            Assert.AreEqual(originalArray.Select(f => f.f).ToArray(), deserializedArray.Select(t => t.f).ToArray());
         }
 
         [TestCase(1, 1, 2)]
@@ -95,7 +95,7 @@ namespace slStreamUtilsProtobufTest
             byte[] bytes = new byte[] { 255 };
             var msPB = new MemoryStream(bytes);
 
-            Assert.ThrowsAsync<StreamSerializationException>(async () =>
+            Assert.ThrowsAsync<EndOfStreamException>(async () =>
             {
                 using (var ds = new CollectionDeserializerAsync<TestItemPB>(cfg))
                     await foreach (TestItemPB item in ds.DeserializeAsync(msPB)) ;
@@ -109,7 +109,7 @@ namespace slStreamUtilsProtobufTest
             byte[] bytes = new byte[] { 1, 1 };
             var msPB = new MemoryStream(bytes);
 
-            Assert.ThrowsAsync<StreamSerializationException>(async () =>
+            Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
                 using (var ds = new CollectionDeserializerAsync<TestItemPB>(cfg))
                     await foreach (TestItemPB item in ds.DeserializeAsync(msPB)) ;
@@ -135,7 +135,7 @@ namespace slStreamUtilsProtobufTest
                     await ser.SerializeAsync(item, CancellationToken.None);
             var msPB = new MemoryStream(msOrig.ToArray());
             using (var ds = new CollectionDeserializerAsync<TestItemPBLarge>(cfg))
-                await foreach (Frame<TestItemPBLarge> item in ds.DeserializeAsync(msPB))
+                await foreach (var item in ds.DeserializeAsync(msPB))
                     newArray.Add(item);
 
             Assert.AreEqual(originalArray.Select(t => t.f).ToArray(), newArray.Select(t => t.f).ToArray());
@@ -180,7 +180,7 @@ namespace slStreamUtilsProtobufTest
             var msPB = new MemoryStream(msOrig.ToArray());
             using (var ds = new CollectionDeserializerAsync<SerializedItemVarLength>(cfg))
                 await foreach (var item in ds.DeserializeAsync(msPB))
-                    newArray.Add(item.Item);
+                    newArray.Add(item);
 
             Assert.AreEqual(originalArray, newArray);
         }
@@ -200,10 +200,10 @@ namespace slStreamUtilsProtobufTest
 
             using (var ser = new CollectionSerializerAsync<TestItemProto>(ms, cfg))
                 foreach (var item in originalArray)
-                    await ser.SerializeAsync(new Frame<TestItemProto>(item), CancellationToken.None);
+                    await ser.SerializeAsync(item, CancellationToken.None);
 
             byte[] originalArraySerialized = ms.ToArray();
-            var deserializedArrayWrapper = Serializer.Deserialize<ArrayWrapper<TestItemProto>>(new MemoryStream(originalArraySerialized));
+            var deserializedArrayWrapper = Serializer.Deserialize<ParallelServices_ArrayWrapper<TestItemProto>>(new MemoryStream(originalArraySerialized));
             Assert.AreEqual(originalArray.Select(t => t.f).ToArray(), deserializedArrayWrapper.Array.Select(t => t.f).ToArray());
         }
 

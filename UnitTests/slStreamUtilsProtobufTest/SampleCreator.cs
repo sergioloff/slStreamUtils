@@ -50,11 +50,11 @@ namespace slStreamUtilsProtobufTest
         [ProtoMember(1)]
         public int i1;
         [ProtoMember(2)]
-        public Frame<int>[] arr1;
+        public int[] arr1;
         [ProtoMember(3)]
         public int i2;
         [ProtoMember(4)]
-        public List<Frame<TestInnerContainer>> lst1;
+        public List<TestInnerContainer> lst1;
         [ProtoMember(5)]
         public int i3;
         public override string ToString()
@@ -104,7 +104,7 @@ namespace slStreamUtilsProtobufTest
         [ProtoMember(1)]
         public int i1;
         [ProtoMember(2)]
-        public Frame<int>[] arr1;
+        public int[] arr1;
         [ProtoMember(3)]
         public int i2;
 
@@ -142,7 +142,7 @@ namespace slStreamUtilsProtobufTest
         public override int GetHashCode()
         {
             return i1.GetHashCode() ^ i2.GetHashCode() ^ 
-                (arr1 == null ? 0 : arr1.Select(f => f.Item.GetHashCode()).Aggregate((f, g) => f ^ g));
+                (arr1 == null ? 0 : arr1.Select(f => f.GetHashCode()).Aggregate((f, g) => f ^ g));
         }
     }
 
