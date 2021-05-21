@@ -9,5 +9,6 @@ namespace slStreamUtils
     public class StreamSerializationException : Exception
     {
         public StreamSerializationException(string msg) : base(msg) { }
+        public StreamSerializationException(string msg, Exception inner) : base(msg, inner) { }
     }
 }

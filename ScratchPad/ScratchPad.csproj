@@ -30,6 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="protobuf-net" Version="3.0.101" />
     <PackageReference Include="MessagePack" Version="2.2.85" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="5.0.5" />
     <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.0.1" />
@@ -42,8 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Benchmarks\slStreamUtilsMessagePackBenchmark\slStreamUtilsMessagePackBenchmark.csproj" />
-    <ProjectReference Include="..\slStreamUtilsMessagePack\slStreamUtilsMessagePack.csproj" />
+    <ProjectReference Include="..\slStreamUtilsProtobuf\slStreamUtilsProtobuf.csproj" />
     <ProjectReference Include="..\slStreamUtils\slStreamUtils.csproj" />
   </ItemGroup>
 

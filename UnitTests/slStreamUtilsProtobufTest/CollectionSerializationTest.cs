@@ -95,7 +95,7 @@ namespace slStreamUtilsProtobufTest
             byte[] bytes = new byte[] { 255 };
             var msPB = new MemoryStream(bytes);
 
-            Assert.ThrowsAsync<StreamSerializationException>(async () =>
+            Assert.ThrowsAsync<EndOfStreamException>(async () =>
             {
                 using (var ds = new CollectionDeserializerAsync<TestItemPB>(cfg))
                     await foreach (TestItemPB item in ds.DeserializeAsync(msPB)) ;
@@ -109,7 +109,7 @@ namespace slStreamUtilsProtobufTest
             byte[] bytes = new byte[] { 1, 1 };
             var msPB = new MemoryStream(bytes);
 
-            Assert.ThrowsAsync<StreamSerializationException>(async () =>
+            Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
                 using (var ds = new CollectionDeserializerAsync<TestItemPB>(cfg))
                     await foreach (TestItemPB item in ds.DeserializeAsync(msPB)) ;
@@ -203,7 +203,7 @@ namespace slStreamUtilsProtobufTest
                     await ser.SerializeAsync(new Frame<TestItemProto>(item), CancellationToken.None);
 
             byte[] originalArraySerialized = ms.ToArray();
-            var deserializedArrayWrapper = Serializer.Deserialize<ArrayWrapper<TestItemProto>>(new MemoryStream(originalArraySerialized));
+            var deserializedArrayWrapper = Serializer.Deserialize<ParallelServices_ArrayWrapper<TestItemProto>>(new MemoryStream(originalArraySerialized));
             Assert.AreEqual(originalArray.Select(t => t.f).ToArray(), deserializedArrayWrapper.Array.Select(t => t.f).ToArray());
         }
 

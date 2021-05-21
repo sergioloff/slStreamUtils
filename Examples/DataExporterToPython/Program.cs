@@ -23,7 +23,7 @@ namespace DataExporterToPython
                 originalArray[f - 1] = new TestClass() { b1 = f % 2 == 0, l1 = DateTime.Now.AddSeconds(f).Ticks, i1 = f, i2 = -f };
             TestClassMPContainer container = new TestClassMPContainer() { arr = originalArray.Select(f => (slMsgPack.Frame<TestClass>)f).ToArray() };
 
-            string protostr = ProtoBuf.Serializer.GetProto<slProto.ArrayWrapper<TestClass>>();
+            string protostr = ProtoBuf.Serializer.GetProto<slProto.ParallelServices_ArrayWrapper<TestClass>>();
             string pythonProj = Path.Combine(Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.Parent.Parent.FullName, @"Examples\PythonDeserializationTest");
             File.WriteAllText(Path.Combine(pythonProj, "TestClass.proto"), protostr);
 

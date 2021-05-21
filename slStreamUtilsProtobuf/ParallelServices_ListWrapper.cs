@@ -8,20 +8,20 @@ using System.Collections.Generic;
 namespace slStreamUtilsProtobuf
 {
     [ProtoContract]
-    public class ArrayWrapper<T>
+    public class ParallelServices_ListWrapper<T>
     {
-        public ArrayWrapper(T[] items)
+        public ParallelServices_ListWrapper(List<T> items)
         {
-            Array = items;
+            List = items;
         }
 
-        public ArrayWrapper()
+        public ParallelServices_ListWrapper()
         {
-            Array = default;
+            List = default;
         }
 
-        [ProtoMember(1)]
-        public T[] Array { get; set; }
+        [ProtoMember(1, IsPacked = false)]
+        public List<T> List { get; set; }
     }
 
 }

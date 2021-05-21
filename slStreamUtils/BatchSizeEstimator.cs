@@ -6,7 +6,9 @@ using System;
 
 namespace slStreamUtils
 {
-    // while not thread-safe, it can be used by multiple threads, producing variable and less accurate results
+    // while not thread-safe per-se, it can be used by multiple threads, producing variable and less accurate results.
+    // in other words, multithreaded use will introduce small random perturbations on the result, but for most cases
+    // these can be ignored.
     public class BatchSizeEstimator
     {
         public BatchSizeEstimatorConfig Config { get; private set; }
