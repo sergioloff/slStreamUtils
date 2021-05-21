@@ -34,7 +34,6 @@ namespace slStreamUtilsProtobuf
         }
         private struct BatchOut
         {
-            public List<int> Lengths;
             public T[] elements;
         }
 
@@ -55,7 +54,7 @@ namespace slStreamUtilsProtobuf
             objPoolList = new DefaultObjectPool<List<int>>(new ListObjectPoolPolicy<int>(64), fifowConfig.MaxQueuedItems);
         }
 
-        public async IAsyncEnumerable<Frame<T>> DeserializeAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
+        public async IAsyncEnumerable<T> DeserializeAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
         {
             BatchIn currentBatch = new BatchIn();
             int currentBatchTotalSize = 0;
@@ -66,7 +65,7 @@ namespace slStreamUtilsProtobuf
                 if (currentBatchTotalSize + itemLength > desiredBatchSize_bytes && currentBatchTotalElements > 0)
                 {
                     // send prev batch
-                    foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                    foreach (T t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
                         yield return t;
                     currentBatchTotalSize = 0;
                     currentBatchTotalElements = 0;
@@ -82,25 +81,18 @@ namespace slStreamUtilsProtobuf
                 currentBatch.Lengths.Add(itemLength);
             }
             if (currentBatchTotalElements > 0) // send unfinished batch
-                foreach (Frame<T> t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
+                foreach (T t in IterateOutputBatch(fifow.AddWorkItem(currentBatch, token)))
                     yield return t;
-            foreach (Frame<T> t in IterateOutputBatch(fifow.Flush(token)))
+            foreach (T t in IterateOutputBatch(fifow.Flush(token)))
                 yield return t;
         }
 
-        private IEnumerable<Frame<T>> IterateOutputBatch(IEnumerable<BatchOut> outBatches)
+        private IEnumerable<T> IterateOutputBatch(IEnumerable<BatchOut> outBatches)
         {
             foreach (BatchOut batch in outBatches)
             {
-                try
-                {
-                    for (int itemIx = 0; itemIx < batch.elements.Length; itemIx++)
-                        yield return new Frame<T>(batch.Lengths[itemIx], batch.elements[itemIx]);
-                }
-                finally
-                {
-                    objPoolList.Return(batch.Lengths);
-                }
+                for (int itemIx = 0; itemIx < batch.elements.Length; itemIx++)
+                    yield return batch.elements[itemIx];
             }
         }
 
@@ -146,12 +138,13 @@ namespace slStreamUtilsProtobuf
             {
                 var obj = typeModel.Deserialize(t_ParallelServices_ArrayWrapper, batch.concatenatedBodies.WrittenSpan);
                 if (obj is ParallelServices_ArrayWrapper<T> arrWT)
-                    return new BatchOut() { Lengths = batch.Lengths, elements = arrWT.Array };
+                    return new BatchOut() { elements = arrWT.Array };
                 else throw new StreamSerializationException($"Invalid deserialized element type. Expected {t_ParallelServices_ArrayWrapper}, got [{(obj is null ? "null" : obj.GetType().ToString())}]");
             }
             finally
             {
                 objPoolBufferWriterSerializedBatch.Return(batch.concatenatedBodies);
+                objPoolList.Return(batch.Lengths);
             }
         }
 

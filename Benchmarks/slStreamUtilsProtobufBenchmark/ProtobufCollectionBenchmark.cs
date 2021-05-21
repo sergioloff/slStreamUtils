@@ -273,7 +273,7 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                         File.Open(tmpFilename_parallel, FileMode.Open, FileAccess.Read, FileShare.None), config_r);
                     using (var dmp = new CollectionDeserializerAsync<T>(new FIFOWorkerConfig(totWorkerThreads), model))
                         await foreach (var i in dmp.DeserializeAsync(s))
-                            res ^= i.Item.DoStuff();
+                            res ^= i.DoStuff();
                 }
                 return res;
             }
@@ -306,7 +306,7 @@ namespace slStreamUtilsProtobufBenchmark.CollectionSerialization
                     File.Open(tmpFilename_parallel, FileMode.Create, FileAccess.Write, FileShare.None), sw_cfg);
                 using (CollectionSerializerAsync<T> smp = new CollectionSerializerAsync<T>(s, new FIFOWorkerConfig(totWorkerThreads), model))
                     foreach (var obj in objArr)
-                        await smp.SerializeAsync(new Frame<T>(obj));
+                        await smp.SerializeAsync(obj);
             }
             if (usingMemoryStream)
             {

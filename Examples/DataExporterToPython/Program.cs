@@ -30,7 +30,7 @@ namespace DataExporterToPython
             using (var fw = File.Create(Path.Combine(pythonProj, "TestClassCollection_proto.dat")))
             await using (var ser = new slProto.CollectionSerializerAsync<TestClass>(fw, new FIFOWorkerConfig(1)))
                 foreach (var item in originalArray)
-                    await ser.SerializeAsync(new slProto.Frame<TestClass>(item));
+                    await ser.SerializeAsync(item);
 
             using (var fw = File.Create(Path.Combine(pythonProj, "TestClassCollection_msgPack.dat")))
             await using (var ser = new slMsgPack.CollectionSerializerAsync<TestClass>(fw, new FIFOWorkerConfig(1)))

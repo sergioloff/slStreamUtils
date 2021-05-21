@@ -50,10 +50,6 @@ namespace slStreamUtilsProtobuf
             currentBatch = objPoolList.Get();
         }
 
-        public Task SerializeAsync(Frame<T> obj, CancellationToken token = default)
-        {
-            return SerializeAsync(obj.Item, token);
-        }
         public async Task SerializeAsync(T t, CancellationToken token = default)
         {
             currentBatch.Add(t);
