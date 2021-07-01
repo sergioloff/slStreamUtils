@@ -147,8 +147,3 @@ var opts = new FrameParallelOptions(totWorkerThreads,
 ```
 
 Besides the examples in the Examples and Benchmark folder, I recomend to [read my blog](https://slstreamutils.blogspot.com/) which contains more in-depth information about the techniques used, particularly for the stream framing.
-```csharp
-var opts = new FrameParallelOptions(totWorkerThreads, 
-	MessagePackSerializerOptions.Standard.WithResolver(FrameResolverPlusStandarResolver.Instance));
-```
-
