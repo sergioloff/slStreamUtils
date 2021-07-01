@@ -94,14 +94,6 @@ This benchmark measures the read and write speed of an object containing fields 
 
 Original type:
 
-## MessagePack - fixed-size arrays
-	
-This benchmark measures the read and write speed of an object containing fields of type Frame<T>[] to/from a MemoryStream.
-
-![performance chart for MessagePack with fixed-size arrays](https://raw.githubusercontent.com/sergioloff/slStreamUtils/master/MP_par.png)
-
-Original type:
-
 ```csharp
 [MessagePackObject]
 public class SomeClass
